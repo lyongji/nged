@@ -10,18 +10,57 @@
 namespace nged {
 namespace detail {
 
-void reloadImGuiFonts(ImFont* &sansSerif, ImFont* &mono, ImFont* &icon, ImFont* &large, ImFont* &largeIcon)
+void reloadImGuiFonts(
+  ImFont*& sansSerif,
+  ImFont*& mono,
+  ImFont*& icon,
+  ImFont*& large,
+  ImFont*& largeIcon)
 {
   auto* atlas = ImGui::GetIO().Fonts;
   auto const& style = UIStyle::instance();
-  static const ImWchar rangesIcons[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
+  static const ImWchar rangesIcons[] = {ICON_MIN_FA, ICON_MAX_FA, 0};
 
   atlas->Clear();
-  sansSerif = atlas->AddFontFromMemoryCompressedTTF(roboto_medium_compressed_data, roboto_medium_compressed_size, style.normalFontSize, nullptr, atlas->GetGlyphRangesGreek());
-  large = atlas->AddFontFromMemoryCompressedTTF(roboto_medium_compressed_data, roboto_medium_compressed_size, style.bigFontSize*2, nullptr, atlas->GetGlyphRangesGreek());
-  mono = atlas->AddFontFromMemoryCompressedTTF(sourcecodepro_compressed_data, sourcecodepro_compressed_size, style.normalFontSize, nullptr, atlas->GetGlyphRangesGreek());
-  icon = atlas->AddFontFromMemoryCompressedTTF(FontAwesomeSolid_compressed_data, FontAwesomeSolid_compressed_size, style.normalFontSize, nullptr, rangesIcons);
-  largeIcon = atlas->AddFontFromMemoryCompressedTTF(FontAwesomeSolid_compressed_data, FontAwesomeSolid_compressed_size, style.bigFontSize*2, nullptr, rangesIcons);
+  sansSerif = atlas->AddFontFromFileTTF(
+    "D:/MyData/cpp/nged/asset/SarasaMonoSC-Regular.ttf",
+    style.normalFontSize,
+    nullptr,
+    atlas->GetGlyphRangesChineseFull());
+  large = sansSerif;
+  mono = sansSerif;
+  // icon = sansSerif;
+
+  // sansSerif = atlas->AddFontFromMemoryCompressedTTF(
+  //   roboto_medium_compressed_data,
+  //   roboto_medium_compressed_size,
+  //   style.normalFontSize,
+  //   nullptr,
+  //   atlas->GetGlyphRangesGreek());
+  // large = atlas->AddFontFromMemoryCompressedTTF(
+  //   roboto_medium_compressed_data,
+  //   roboto_medium_compressed_size,
+  //   style.bigFontSize * 2,
+  //   nullptr,
+  //   atlas->GetGlyphRangesGreek());
+  // mono = atlas->AddFontFromMemoryCompressedTTF(
+  //   sourcecodepro_compressed_data,
+  //   sourcecodepro_compressed_size,
+  //   style.normalFontSize,
+  //   nullptr,
+  //   atlas->GetGlyphRangesGreek());
+  icon = atlas->AddFontFromMemoryCompressedTTF(
+    FontAwesomeSolid_compressed_data,
+    FontAwesomeSolid_compressed_size,
+    style.normalFontSize,
+    nullptr,
+    rangesIcons);
+  largeIcon = atlas->AddFontFromMemoryCompressedTTF(
+    FontAwesomeSolid_compressed_data,
+    FontAwesomeSolid_compressed_size,
+    style.bigFontSize * 2,
+    nullptr,
+    rangesIcons);
 }
 
 } // namespace detail

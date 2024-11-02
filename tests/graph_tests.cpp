@@ -6,38 +6,41 @@
 namespace gmath {
 std::ostream& operator<<(std::ostream& os, nged::Color const& c)
 {
-  return os << "Color(sRGB, " << int(c.r) << "," << int(c.g) << "," << int(c.b) << "," << int(c.a) << ")";
+  return os << "Color(sRGB, " << int(c.r) << "," << int(c.g) << "," << int(c.b) << "," << int(c.a)
+            << ")";
 }
 }
 
-class DummyNode : public nged::Node
+class 虚拟节点 : public nged::Node
 {
-  int numInput=1;
-  int numOutput=1;
+  int numInput = 1;
+  int numOutput = 1;
 
 public:
-  DummyNode(int numInput, int numOutput, nged::Graph* parent, std::string const& type, std::string const& name)
-    : nged::Node(parent, type, name)
-    , numInput(numInput)
-    , numOutput(numOutput)
+  虚拟节点(
+    int numInput,
+    int numOutput,
+    nged::Graph* parent,
+    std::string const& type,
+    std::string const& name)
+      : nged::Node(parent, type, name), numInput(numInput), numOutput(numOutput)
   {
   }
   nged::sint numMaxInputs() const override { return numInput; }
   nged::sint numOutputs() const override { return numOutput; }
 };
 
-class SubGraphNode : public DummyNode
+class SubGraphNode : public 虚拟节点
 {
-  nged::GraphPtr subgraph_;
+  nged::GraphPtr 子图_;
 
 public:
-  SubGraphNode(nged::Graph* parent):
-    DummyNode(1,1,parent,"subgraph","subgraph")
+  SubGraphNode(nged::Graph* parent) : 虚拟节点(1, 1, parent, "subgraph", "subgraph")
   {
-    subgraph_ = std::make_shared<nged::Graph>(parent->docRoot(), parent, "subgraph");
+    子图_ = std::make_shared<nged::Graph>(parent->docRoot(), parent, "subgraph");
   }
-  virtual nged::Graph* asGraph() override { return subgraph_.get(); }
-  virtual nged::Graph const* asGraph() const override { return subgraph_.get(); }
+  virtual nged::Graph* asGraph() override { return 子图_.get(); }
+  virtual nged::Graph const* asGraph() const override { return 子图_.get(); }
 };
 
 struct DummyNodeDef
@@ -46,47 +49,42 @@ struct DummyNodeDef
   int numinput, numoutput;
 };
 
-static DummyNodeDef defs[] = {
-  { "exec", 4, 1 },
-  { "null", 1, 1 },
-  { "merge", -1, 1 },
-  { "split", 1, 2 },
-  { "out", 1, 0 },
-  { "in", 0, 1 }
-};
+static DummyNodeDef defs[] =
+  {{"exec", 4, 1}, {"null", 1, 1}, {"merge", -1, 1}, {"split", 1, 2}, {"out", 1, 0}, {"in", 0, 1}};
 
-class MyNodeFactory: public nged::NodeFactory 
+class MyNodeFactory : public nged::NodeFactory
 {
   nged::GraphPtr createRootGraph(nged::NodeGraphDoc* root) const override
   {
     return std::make_shared<nged::Graph>(root, nullptr, "root");
   }
-  nged::NodePtr  createNode(nged::Graph* parent, std::string_view type) const override
+  nged::NodePtr createNode(nged::Graph* parent, std::string_view type) const override
   {
     std::string typestr(type);
-    if (type=="subgraph")
+    if (type == "subgraph")
       return std::make_shared<SubGraphNode>(parent);
-    for (auto const& d: defs)
+    for (auto const& d : defs)
       if (d.type == type)
-        return std::make_shared<DummyNode>(d.numinput, d.numoutput, parent, typestr, typestr);
-    return std::make_shared<DummyNode>(4, 1, parent, typestr, typestr);
+        return std::make_shared<虚拟节点>(d.numinput, d.numoutput, parent, typestr, typestr);
+    return std::make_shared<虚拟节点>(4, 1, parent, typestr, typestr);
   }
   void listNodeTypes(
-      nged::Graph* graph,
+    nged::Graph* graph,
+    void* context,
+    void (*ret)(
       void* context,
-      void(*ret)(
-        void* context,
-        nged::StringView category,
-        nged::StringView type,
-        nged::StringView name)) const override
+      nged::StringView category,
+      nged::StringView type,
+      nged::StringView name)) const override
   {
     ret(context, "subgraph", "subgraph", "subgraph");
-    for (auto const& d: defs)
+    for (auto const& d : defs)
       ret(context, "demo", d.type, d.type);
   }
 };
 
-TEST_CASE("Graph Creation") {
+TEST_CASE("Graph Creation")
+{
   auto itemfactory = nged::defaultGraphItemFactory();
   nged::NodeGraphDoc doc(std::make_shared<MyNodeFactory>(), itemfactory.get());
   doc.makeRoot();
@@ -109,7 +107,8 @@ TEST_CASE("Graph Creation") {
   subgraph->createNode("null");
   CHECK(doc.numItems() == 5); // null, exec, link, subgraph, null
 
-  SUBCASE("Graph Traverse") {
+  SUBCASE("Graph Traverse")
+  {
     auto exec = subgraph->createNode("exec");
     auto in1 = subgraph->createNode("null");
     auto in2 = subgraph->createNode("null");
@@ -138,13 +137,11 @@ struct DummyTypedDef
   nged::Vector<nged::String> outputTypes;
 };
 
-class DummyTypedNode: public nged::TypedNode
+class DummyTypedNode : public nged::TypedNode
 {
 public:
-  DummyTypedNode(
-    nged::Graph* parent,
-    DummyTypedDef const& def)
-    : nged::TypedNode(parent, def.type, def.name, def.inputTypes, def.outputTypes)
+  DummyTypedNode(nged::Graph* parent, DummyTypedDef const& def)
+      : nged::TypedNode(parent, def.type, def.name, def.inputTypes, def.outputTypes)
   {
   }
 
@@ -153,46 +150,47 @@ public:
 };
 
 static DummyTypedDef typedDefs[] = {
-  { "makeint", "makeint", {}, {"int"} },
-  { "makefloat", "makefloat", {}, {"float"} },
-  { "sumint", "sumint", { "int", "int" }, { "int" } },
-  { "sumfloat", "sumfloat", { "float", "float" }, { "float" } },
-  { "makelist", "makelist", { "any", "any", "any" }, { "list" } },
-  { "reduce", "reduce", {"func", "list" }, {"any"} }
-};
+  {"makeint", "makeint", {}, {"int"}},
+  {"makefloat", "makefloat", {}, {"float"}},
+  {"sumint", "sumint", {"int", "int"}, {"int"}},
+  {"sumfloat", "sumfloat", {"float", "float"}, {"float"}},
+  {"makelist", "makelist", {"any", "any", "any"}, {"list"}},
+  {"reduce", "reduce", {"func", "list"}, {"any"}}};
 
-class MyTypedNodeFactory: public nged::NodeFactory 
+class MyTypedNodeFactory : public nged::NodeFactory
 {
   nged::GraphPtr createRootGraph(nged::NodeGraphDoc* root) const override
   {
     return std::make_shared<nged::Graph>(root, nullptr, "root");
   }
-  nged::NodePtr  createNode(nged::Graph* parent, std::string_view type) const override
+  nged::NodePtr createNode(nged::Graph* parent, std::string_view type) const override
   {
     std::string typestr(type);
-    for (auto const& d: typedDefs)
+    for (auto const& d : typedDefs)
       if (d.type == type)
         return std::make_shared<DummyTypedNode>(parent, d);
     return nullptr;
   }
   void listNodeTypes(
-      nged::Graph* graph,
+    nged::Graph* graph,
+    void* context,
+    void (*ret)(
       void* context,
-      void(*ret)(
-        void* context,
-        nged::StringView category,
-        nged::StringView type,
-        nged::StringView name)) const override
+      nged::StringView category,
+      nged::StringView type,
+      nged::StringView name)) const override
   {
-    for (auto const& d: typedDefs)
+    for (auto const& d : typedDefs)
       ret(context, "demo", d.type, d.name);
   }
 };
 
-TEST_CASE("TypedNode Test") {
-  SUBCASE("TypeSystem Test") {
+TEST_CASE("TypedNode Test")
+{
+  SUBCASE("TypeSystem Test")
+  {
     auto& typesys = nged::TypeSystem::instance();
-    typesys.registerType("int", "", {255,255,0,255});
+    typesys.registerType("int", "", {255, 255, 0, 255});
     typesys.registerType("float");
     typesys.registerType("vec2");
     typesys.registerType("vec3");
@@ -243,6 +241,6 @@ TEST_CASE("TypedNode Test") {
   CHECK(sumint->getPinForIncomingLink(makefloat->id(), 0) == -1);
   CHECK(sumfloat->getPinForIncomingLink(makeint->id(), 0) == 0);
 
-  CHECK(sumint->outputPinColor(0) == nged::Color{255,255,0,255});
-  CHECK(sumint->inputPinColor(0) == nged::Color{255,255,0,255});
+  CHECK(sumint->outputPinColor(0) == nged::Color{255, 255, 0, 255});
+  CHECK(sumint->inputPinColor(0) == nged::Color{255, 255, 0, 255});
 }

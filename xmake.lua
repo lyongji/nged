@@ -1,5 +1,6 @@
 add_defines('SPDLOG_COMPILED_LIB=1')
 set_languages('cxx17', 'c11')
+set_encodings('utf-8')
 add_rules("mode.release")
 add_rules("mode.debug")
 add_rules("mode.profile")

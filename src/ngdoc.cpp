@@ -26,7 +26,7 @@ void from_json(nlohmann::json const& j, Color& c)
       throw std::length_error("vals should have 4 values");
     }
     gmath::LinearColor lc = {vals[0], vals[1], vals[2], vals[3]};
-    c                     = toSRGB(lc);
+    c = toSRGB(lc);
   } else if (j.type() == Json::value_t::string) {
     String code = j;
     if (code.size() != 9 || code[0] != '#') {
@@ -77,8 +77,8 @@ bool GraphItem::serialize(Json& json) const
 {
   to_json(json["aabb"], aabb_);
   std::array<int64_t, 2> intpos = {int64_t(std::round(pos_.x)), int64_t(std::round(pos_.y))};
-  json["pos"]                   = intpos;
-  json["uid"]                   = uidToString(uid_);
+  json["pos"] = intpos;
+  json["uid"] = uidToString(uid_);
   return true;
 }
 
@@ -94,7 +94,7 @@ bool GraphItem::deserialize(Json const& json)
       from_json(*positr, pos_);
     } else {
       std::array<int64_t, 2> intpos = *positr;
-      pos_                          = {float(intpos[0]), float(intpos[1])};
+      pos_ = {float(intpos[0]), float(intpos[1])};
     }
   } else
     return false;
@@ -112,7 +112,7 @@ bool GraphItem::deserialize(Json const& json)
 void GraphItem::setUID(UID const& uid)
 {
   sourceUID_ = uid_;
-  uid_       = uid;
+  uid_ = uid;
   if (parent_ && parent_->docRoot())
     parent_->docRoot()->moveUID(sourceUID_, uid_);
 }
@@ -122,7 +122,7 @@ void GraphItem::setUID(UID const& uid)
 Node::Node(Graph* parent, String type, String name)
     : GraphItem(parent), type_(std::move(type)), name_(std::move(name))
 {
-  aabb_  = {{-25, -10}, {25, 10}};
+  aabb_ = {{-25, -10}, {25, 10}};
   color_ = gmath::fromUint32sRGBA(UIStyle::instance().nodeDefaultColor);
   String newname;
   if (rename(name_, newname))
@@ -131,7 +131,7 @@ Node::Node(Graph* parent, String type, String name)
 
 Vec2 Node::inputPinPos(sint i) const
 {
-  auto sz    = aabb_.size();
+  auto sz = aabb_.size();
   auto count = numMaxInputs();
   if (count < 0) {
     if (auto graph = parent()) {
@@ -141,14 +141,14 @@ Vec2 Node::inputPinPos(sint i) const
       }));
       if (count == 0) { // error
         count = 1;
-        i     = 0;
+        i = 0;
       }
       if (i < 0) { // add to the last
         i = count;
       }
     } else { // not added to graph yet
       count = 1;
-      i     = 0;
+      i = 0;
     }
   }
   float idx = float(i);
@@ -173,10 +173,7 @@ Color Node::inputPinColor(sint i) const
   return color_;
 }
 
-Color Node::outputPinColor(sint i) const
-{
-  return color_;
-}
+Color Node::outputPinColor(sint i) const { return color_; }
 
 bool Node::hasSetColor() const
 {
@@ -187,10 +184,10 @@ bool Node::mergedInputBound(AABB& bound) const
 {
   auto const n = numMaxInputs();
   if (n > 8 || n < 0) {
-    auto sz     = aabb_.size();
+    auto sz = aabb_.size();
     auto center = Vec2{0, -sz.y / 2.0f - 4} + pos_;
-    bound.min   = center + Vec2{-sz.x / 2 + 6, -3};
-    bound.max   = center + Vec2{sz.x / 2 - 6, 3};
+    bound.min = center + Vec2{-sz.x / 2 + 6, -3};
+    bound.max = center + Vec2{sz.x / 2 - 6, 3};
     return true;
   } else {
     return false;
@@ -216,30 +213,33 @@ bool Node::getInput(sint inPort, NodePtr& nodeptr, sint& outPort) const
   auto g = parent();
   assert(g);
   auto itemid = id();
-  auto port   = inPort;
+  auto port = inPort;
 
   std::set<ItemID> visited;
   for (InputConnection link; g->getLinkSource(itemid, port, link);) {
     if (auto itemptr = g->get(link.sourceItem)) {
       if (visited.find(itemptr->id()) != visited.end()) {
-        msghub::errorf("found loop on node {}[{}]", name(), inPort);
+        msghub::errorf("发现节点上的循环 {}[{}]", name(), inPort); //"found loop on node {}[{}]"
         return false;
       }
       visited.insert(itemptr->id());
       if (auto* router = itemptr->asRouter()) {
         itemid = itemptr->id();
-        port   = 0;
+        port = 0;
         continue;
       } else if (itemptr->asNode()) {
         nodeptr = std::static_pointer_cast<Node>(itemptr);
         outPort = link.sourcePort;
         return true;
       } else {
-        msghub::errorf("unknown thing was connected to node {}[{}]", name(), inPort);
+        msghub::errorf(
+          "未知事物连接到节点 {}[{}]",
+          name(),
+          inPort); //"unknown thing was connected to node {}[{}]"
         return false;
       }
     } else {
-      msghub::trace("link to dead end");
+      msghub::trace("链接到死路"); //"link to dead end"
       return false;
     }
   }
@@ -287,13 +287,13 @@ bool Node::deserialize(Json const& json)
   if (auto typeitr = json.find("type"); typeitr != json.end())
     type_ = *typeitr;
   else {
-    msghub::error("node has no type");
+    msghub::error("节点无类型"); //"node has no type"
     return false;
   }
   if (auto nameitr = json.find("name"); nameitr != json.end())
     name_ = *nameitr;
   else {
-    msghub::error("node has no name");
+    msghub::error("节点无名称"); //"node has no name"
     return false;
   }
   if (auto coloritr = json.find("color"); coloritr != json.end())
@@ -313,22 +313,23 @@ TypeSystem& TypeSystem::instance()
   return instance;
 }
 
-TypeSystem::TypeIndex TypeSystem::registerType(StringView name, StringView baseType, Color hintColor)
+TypeSystem::TypeIndex
+TypeSystem::registerType(StringView name, StringView baseType, Color hintColor)
 {
   auto existingItr = typeIndex_.find(name);
   if (existingItr != typeIndex_.end())
     return existingItr->second;
-  sint baseindex = baseType==""? -1: registerType(baseType);
+  sint baseindex = baseType == "" ? -1 : registerType(baseType);
   auto index = nextTypeIndex_++;
   auto strname = String(name);
   typeIndex_[strname] = index;
   types_.emplace_back(strname);
-  assert(index+1 == types_.size());
+  assert(index + 1 == types_.size());
   if (baseindex != -1) {
     typeBaseType_[strname] = baseindex;
     typeConvertable_[std::make_pair(index, baseindex)] = true;
   }
-  static auto constexpr noColor = Color{0,0,0,0};
+  static auto constexpr noColor = Color{0, 0, 0, 0};
   if (hintColor != noColor)
     setColorHint(index, hintColor);
   return index;
@@ -371,10 +372,7 @@ TypeSystem::TypeIndex TypeSystem::typeIndex(StringView type) const
     return InvalidTypeIndex;
 }
 
-sint TypeSystem::typeCount() const
-{
-  return types_.size();
-}
+sint TypeSystem::typeCount() const { return types_.size(); }
 
 StringView TypeSystem::typeName(TypeIndex index) const
 {
@@ -395,7 +393,8 @@ StringView TypeSystem::typeBaseType(TypeIndex index) const
 
 Optional<Color> TypeSystem::colorHint(TypeIndex index) const
 {
-  if (auto itr = typeColorHints_.find(index); itr != typeColorHints_.end() && index != InvalidTypeIndex)
+  if (auto itr = typeColorHints_.find(index);
+      itr != typeColorHints_.end() && index != InvalidTypeIndex)
     return Optional<Color>(itr->second);
   else
     return Optional<Color>{};
@@ -431,8 +430,7 @@ Color TypedNode::inputPinColor(sint i) const
   if (i < 0 || i >= numMaxInputs())
     return Node::color();
   else
-    return TypeSystem::instance().colorHint(inputType(i)).value_or(
-      Node::inputPinColor(i));
+    return TypeSystem::instance().colorHint(inputType(i)).value_or(Node::inputPinColor(i));
 }
 
 Color TypedNode::outputPinColor(sint i) const
@@ -440,8 +438,7 @@ Color TypedNode::outputPinColor(sint i) const
   if (i < 0 || i >= numOutputs())
     return Node::color();
   else
-    return TypeSystem::instance().colorHint(outputType(i)).value_or(
-      Node::outputPinColor(i));
+    return TypeSystem::instance().colorHint(outputType(i)).value_or(Node::outputPinColor(i));
 }
 
 bool TypedNode::acceptInput(sint port, Node const* sourceNode, sint sourcePort) const
@@ -449,11 +446,11 @@ bool TypedNode::acceptInput(sint port, Node const* sourceNode, sint sourcePort) 
   auto const* typedSource = sourceNode->asTypedNode();
   assert(typedSource);
   auto const& typeSystem = TypeSystem::instance();
-  auto const  srcType    = typedSource->outputType(sourcePort);
-  auto const  dstType    = inputType(port);
+  auto const srcType = typedSource->outputType(sourcePort);
+  auto const dstType = inputType(port);
   if (typeSystem.isConvertable(srcType, dstType))
     return true;
-  else 
+  else
     return false;
 }
 
@@ -473,7 +470,7 @@ sint TypedNode::getPinForIncomingLink(ItemID sourceItem, sint sourcePin) const
   auto const* typedSource = sourceNode->asTypedNode();
   assert(typedSource);
   auto const& typeSystem = TypeSystem::instance();
-  auto const  srcType    = typedSource->outputType(sourcePin);
+  auto const srcType = typedSource->outputType(sourcePin);
   for (sint i = 0, n = numMaxInputs(); i < n; ++i) {
     auto const dstType = inputType(i);
     if (typeSystem.isConvertable(srcType, dstType))
@@ -486,17 +483,17 @@ sint TypedNode::getPinForIncomingLink(ItemID sourceItem, sint sourcePin) const
 // Link {{{
 void Link::calculatePath()
 {
-  auto const g         = parent();
-  auto const srcitem   = g->get(input_.sourceItem);
-  auto const dstitem   = g->get(output_.destItem);
-  auto const srcnode   = srcitem->asNode();
-  auto const dstnode   = dstitem->asNode();
+  auto const g = parent();
+  auto const srcitem = g->get(input_.sourceItem);
+  auto const dstitem = g->get(output_.destItem);
+  auto const srcnode = srcitem->asNode();
+  auto const dstnode = dstitem->asNode();
   auto const srcbounds = srcitem->aabb();
   auto const dstbounds = dstitem->aabb();
-  auto const srcpos    = srcnode ? srcnode->outputPinPos(input_.sourcePort) : srcitem->pos();
-  auto const dstpos    = dstnode ? dstnode->inputPinPos(output_.destPort) : dstitem->pos();
-  auto const srcdir    = srcnode ? srcnode->outputPinDir(input_.sourcePort) : Vec2(0, 1);
-  auto const dstdir    = dstnode ? dstnode->inputPinDir(output_.destPort) : Vec2(0, -1);
+  auto const srcpos = srcnode ? srcnode->outputPinPos(input_.sourcePort) : srcitem->pos();
+  auto const dstpos = dstnode ? dstnode->inputPinPos(output_.destPort) : dstitem->pos();
+  auto const srcdir = srcnode ? srcnode->outputPinDir(input_.sourcePort) : Vec2(0, 1);
+  auto const dstdir = dstnode ? dstnode->inputPinDir(output_.destPort) : Vec2(0, -1);
 
   path_ = parent()->calculatePath(srcpos, dstpos, srcdir, dstdir, srcbounds, dstbounds);
   aabb_ = AABB(path_.front());
@@ -529,10 +526,10 @@ bool Link::hitTest(AABB bb) const
 
 bool Link::serialize(Json& json) const
 {
-  json["from"]["id"]   = input_.sourceItem.value();
+  json["from"]["id"] = input_.sourceItem.value();
   json["from"]["port"] = input_.sourcePort;
-  json["to"]["id"]     = output_.destItem.value();
-  json["to"]["port"]   = output_.destPort;
+  json["to"]["id"] = output_.destItem.value();
+  json["to"]["port"] = output_.destPort;
   return true;
 }
 
@@ -540,7 +537,7 @@ bool Link::deserialize(Json const& json)
 {
   if (!GraphItem::deserialize(json))
     return false;
-  InputConnection  ic;
+  InputConnection ic;
   OutputConnection oc;
   if (auto fromitr = json.find("from"); fromitr != json.end()) {
     if (auto nodeitr = fromitr->find("id"); nodeitr != fromitr->end())
@@ -566,7 +563,7 @@ bool Link::deserialize(Json const& json)
   } else {
     return false;
   }
-  input_  = ic;
+  input_ = ic;
   output_ = oc;
   return true;
 }
@@ -576,8 +573,8 @@ bool Link::deserialize(Json const& json)
 Router::Router(Graph* parent) : GraphItem(parent)
 {
   float const r = UIStyle::instance().routerRadius;
-  aabb_         = AABB({-r, -r}, {r, r});
-  color_        = gmath::fromUint32sRGBA(UIStyle::instance().nodeDefaultColor);
+  aabb_ = AABB({-r, -r}, {r, r});
+  color_ = gmath::fromUint32sRGBA(UIStyle::instance().nodeDefaultColor);
 }
 
 bool Router::hitTest(Vec2 point) const
@@ -615,7 +612,7 @@ bool Router::getNodeSource(Node*& node, sint& pin) const
     }
     if (auto* asnode = g->get(ic.sourceItem)->asNode()) {
       node = asnode;
-      pin  = ic.sourcePort;
+      pin = ic.sourcePort;
       return true;
     }
   }
@@ -626,7 +623,7 @@ bool Router::getNodeSource(Node*& node, sint& pin) const
 // GroupBox {{{
 GroupBox::GroupBox(Graph* parent) : ResizableBox(parent)
 {
-  aabb_            = {{-100, -100}, {100, 100}};
+  aabb_ = {{-100, -100}, {100, 100}};
   backgroundColor_ = gmath::fromUint32sRGBA(UIStyle::instance().groupBoxBackground);
 }
 
@@ -637,7 +634,7 @@ bool GroupBox::serialize(Json& json) const
   to_json(json["bgcolor"], backgroundColor_);
   Vector<size_t> values;
   values.reserve(containingItems_.size());
-  for (auto id: containingItems())
+  for (auto id : containingItems())
     values.push_back(id.value());
   json["contains"] = values;
   return true;
@@ -651,7 +648,7 @@ bool GroupBox::deserialize(Json const& json)
   if (auto contains = json.find("contains"); contains != json.end()) {
     Vector<size_t> values = *contains;
     containingItems_.clear();
-    for (auto v: values)
+    for (auto v : values)
       containingItems_.insert(ItemID(v));
   }
   return true;
@@ -660,7 +657,7 @@ bool GroupBox::deserialize(Json const& json)
 void GroupBox::remapItems(HashMap<size_t, ItemID> const& idmap)
 {
   HashSet<ItemID> remapedItems;
-  for (auto&& id: containingItems_) {
+  for (auto&& id : containingItems_) {
     if (auto itr = idmap.find(id.value()); itr != idmap.end()) {
       remapedItems.insert(itr->second);
     } else {
@@ -670,15 +667,9 @@ void GroupBox::remapItems(HashMap<size_t, ItemID> const& idmap)
   containingItems_ = std::move(remapedItems);
 }
 
-void GroupBox::insertItem(ItemID id)
-{
-  containingItems_.insert(id);
-}
+void GroupBox::insertItem(ItemID id) { containingItems_.insert(id); }
 
-void GroupBox::eraseItem(ItemID id)
-{
-  containingItems_.erase(id);
-}
+void GroupBox::eraseItem(ItemID id) { containingItems_.erase(id); }
 
 void GroupBox::rescanContainingItems()
 {
@@ -721,18 +712,18 @@ bool GroupBox::moveTo(Vec2 to) { return ResizableBox::moveTo(to); }
 // CommentBox {{{
 CommentBox::CommentBox(Graph* parent) : ResizableBox(parent)
 {
-  auto const s     = UIStyle::instance().commentBoxMargin;
-  aabb_            = AABB(-s, s);
-  color_           = gmath::fromUint32sRGBA(UIStyle::instance().commentColor);
+  auto const s = UIStyle::instance().commentBoxMargin;
+  aabb_ = AABB(-s, s);
+  color_ = gmath::fromUint32sRGBA(UIStyle::instance().commentColor);
   backgroundColor_ = gmath::fromUint32sRGBA(UIStyle::instance().commentBackground);
-  text_            = "// some comment";
+  text_ = "// some comment";
 }
 
 AABB CommentBox::localBound() const
 {
-  auto const s        = UIStyle::instance().commentBoxMargin;
+  auto const s = UIStyle::instance().commentBoxMargin;
   auto const halfSize = textSize_ / 2 + s;
-  auto       bb       = ResizableBox::localBound();
+  auto bb = ResizableBox::localBound();
   if (bb.width() < halfSize.x * 2) {
     bb.min.x = -halfSize.x;
     bb.max.x = halfSize.x;
@@ -799,7 +790,7 @@ bool Arrow::serialize(Json& json) const
   to_json(json["start"], start_);
   to_json(json["end"], end_);
   json["thickness"] = thickness_;
-  json["size"]      = tipSize_;
+  json["size"] = tipSize_;
   return true;
 }
 
@@ -811,7 +802,7 @@ try {
   from_json(json.at("start"), start_);
   from_json(json.at("end"), end_);
   thickness_ = json.at("thickness");
-  tipSize_   = json.at("size");
+  tipSize_ = json.at("size");
   return true;
 } catch (Json::exception const& err) {
   return false;
@@ -839,23 +830,23 @@ bool Graph::readonly() const
 
 ItemID Graph::add(GraphItemPtr item)
 {
-  if (readonly()) {
-    msghub::info("graph is read-only, cannot add any item");
+  if (readonly()) { // graph is read-only, cannot add any item
+    msghub::info("图形是只读的，不能添加任何项");
     return ID_None;
   }
   if (item->id() != ID_None) {
     if (auto ptr = tryGet(item->id()); ptr && ptr == item) {
-      msghub::warn("item {} is already there, do not add again");
-      return item->id();
-    } else {
-      msghub::error("item is already added elsewhere, cannot be added again");
+      msghub::warn("项目{}已经存在，不要再添加");
+      return item->id(); //"item {} is already there, do not add again"
+    } else {             //"item is already added elsewhere,cannot be added again"
+      msghub::error("项目已在其他地方添加，无法再次添加");
       return ID_None;
     }
   }
   auto doc = docRoot();
   assert(item->parent() == this);
   auto newid = doc->addItem(item);
-  item->id_  = newid;
+  item->id_ = newid;
   items_.insert(newid);
   doc->notifyGraphModified(this);
   item->settled();
@@ -912,16 +903,16 @@ void Graph::regulateVariableInput(Node* node)
   for (auto itr = connectedPorts.begin(); itr != connectedPorts.end(); ++itr, ++next) {
     if (itr->first != next) {
       auto oldoutput = OutputConnection{node->id(), itr->first};
-      auto oldinput  = links_.at(oldoutput);
+      auto oldinput = links_.at(oldoutput);
       if (auto linkptr = get(itr->second)) {
         doRemoveNoCheck(itr->second);
         links_.erase(oldoutput);
         linkIDs_.erase(oldoutput);
       }
-      auto newoutput      = OutputConnection{node->id(), next};
-      auto newlink        = std::make_shared<Link>(this, oldinput, newoutput);
-      auto newid          = add(newlink);
-      links_[newoutput]   = oldinput;
+      auto newoutput = OutputConnection{node->id(), next};
+      auto newlink = std::make_shared<Link>(this, oldinput, newoutput);
+      auto newid = add(newlink);
+      links_[newoutput] = oldinput;
       linkIDs_[newoutput] = newid;
     }
   }
@@ -1011,7 +1002,7 @@ bool Graph::move(HashSet<ItemID> const& items, Vec2 const& delta)
     return false;
   }
   bool anythingMoved = false;
-  auto doc           = docRoot();
+  auto doc = docRoot();
   for (auto id : items) {
     assert(items_.find(id) != items_.end());
     if (auto itemptr = doc->getItem(id))
@@ -1032,14 +1023,19 @@ LinkPtr Graph::getLink(ItemID destItem, sint destPort)
   return nullptr;
 }
 
-bool Graph::checkLinkIsAllowed(ItemID sourceItem, sint sourcePort, ItemID destItem, sint destPort, NodePin* errorPin)
+bool Graph::checkLinkIsAllowed(
+  ItemID sourceItem,
+  sint sourcePort,
+  ItemID destItem,
+  sint destPort,
+  NodePin* errorPin)
 {
-  auto srcitem    = get(sourceItem);
-  auto dstitem    = get(destItem);
+  auto srcitem = get(sourceItem);
+  auto dstitem = get(destItem);
   auto srcnodeptr = srcitem->asNode();
   auto dstnodeptr = dstitem->asNode();
-  auto srcrouter  = srcitem->asRouter();
-  auto dstrouter  = dstitem->asRouter();
+  auto srcrouter = srcitem->asRouter();
+  auto dstrouter = dstitem->asRouter();
   if (srcrouter) {
     for (InputConnection ic = {sourceItem, 0}; getLinkSource(ic.sourceItem, 0, ic);) {
       auto item = get(ic.sourceItem);
@@ -1061,12 +1057,11 @@ bool Graph::checkLinkIsAllowed(ItemID sourceItem, sint sourcePort, ItemID destIt
       Vector<ItemID> tovisit;
       HashSet<ItemID> visited;
       Vector<OutputConnection> ocs;
-      for (tovisit.push_back(dstrouter->id());
-          !tovisit.empty();) {
+      for (tovisit.push_back(dstrouter->id()); !tovisit.empty();) {
         auto routerid = tovisit.back();
         tovisit.pop_back();
         if (getLinkDestiny(routerid, 0, ocs)) {
-          for (auto&& oc: ocs) {
+          for (auto&& oc : ocs) {
             auto item = get(oc.destItem);
             if (item->asRouter())
               tovisit.push_back(item->id());
@@ -1087,15 +1082,15 @@ bool Graph::checkLinkIsAllowed(ItemID sourceItem, sint sourcePort, ItemID destIt
 
 LinkPtr Graph::setLink(ItemID sourceItem, sint sourcePort, ItemID destItem, sint destPort)
 {
-  auto doc        = docRoot();
-  auto srcitem    = get(sourceItem);
-  auto dstitem    = get(destItem);
+  auto doc = docRoot();
+  auto srcitem = get(sourceItem);
+  auto dstitem = get(destItem);
   auto srcnodeptr = srcitem->asNode();
   auto dstnodeptr = dstitem->asNode();
-  auto srcrouter  = srcitem->asRouter();
-  auto dstrouter  = dstitem->asRouter();
+  auto srcrouter = srcitem->asRouter();
+  auto dstrouter = dstitem->asRouter();
   msghub::tracef(
-    "trying to set link from {:x}({})[{}] to {:x}({})[{}]",
+    "试图设置链接 {:x}({})[{}] 到 {:x}({})[{}]", // trying to set link from
     sourceItem.value(),
     srcnodeptr ? srcnodeptr->name() : ".",
     sourcePort,
@@ -1108,7 +1103,7 @@ LinkPtr Graph::setLink(ItemID sourceItem, sint sourcePort, ItemID destItem, sint
     sint lastPort = -1;
     for (auto const& link : links_) {
       if (link.first.destItem == destItem) {
-        lastPort     = std::max(lastPort, link.first.destPort);
+        lastPort = std::max(lastPort, link.first.destPort);
         auto linkptr = get(linkIDs_.at(link.first));
         assert(linkptr && linkptr->asLink());
         affectedLinks.push_back(std::static_pointer_cast<Link>(linkptr));
@@ -1117,19 +1112,21 @@ LinkPtr Graph::setLink(ItemID sourceItem, sint sourcePort, ItemID destItem, sint
     if (destPort < 0)
       destPort = lastPort + 1;
   } else if (destPort < 0) {
-    msghub::error("trying to set mutable input on node with fixed input count");
+    msghub::error("尝试在具有固定输入计数的节点上设置可变输入"); // trying to set mutable input
+                                                                 // on node with fixed input
+                                                                 // count
     return nullptr;
   }
   // trace through the routers to check real source and dest(s)
   if (!checkLinkIsAllowed(sourceItem, sourcePort, destItem, destPort))
     return nullptr;
-  InputConnection  ic = {sourceItem, sourcePort};
+  InputConnection ic = {sourceItem, sourcePort};
   OutputConnection oc = {destItem, destPort};
   if (dstrouter || dstnodeptr) {
     if (auto existing = linkIDs_.find(oc); existing != linkIDs_.end()) {
       doRemoveNoCheck(existing->second);
     }
-    links_[oc]   = ic;
+    links_[oc] = ic;
     auto linkptr = std::make_shared<Link>(this, ic, oc);
     linkIDs_[oc] = add(linkptr);
     // affectedLink can be invalid after above operations
@@ -1147,15 +1144,15 @@ LinkPtr Graph::setLink(ItemID sourceItem, sint sourcePort, ItemID destItem, sint
 void Graph::removeLink(ItemID destNodeID, sint destPort)
 {
   if (readonly()) {
-    msghub::info("graph is read-only, cannot remove link");
+    msghub::info("图形是只读，不能删除链接"); // graph is read-only, cannot remove link
     return;
   }
-  auto             doc         = docRoot();
-  OutputConnection oc          = {destNodeID, destPort};
-  bool             isVarInput  = false;
-  auto*            destNodePtr = get(destNodeID)->asNode();
+  auto doc = docRoot();
+  OutputConnection oc = {destNodeID, destPort};
+  bool isVarInput = false;
+  auto* destNodePtr = get(destNodeID)->asNode();
   msghub::tracef(
-    "trying to remove link to {:x}({})[{}]",
+    "试图删除指向{:x}({})[{}]的链接", //"trying to remove link to {:x}({})[{}]"
     destNodeID.value(),
     destNodePtr ? destNodePtr->name() : ".",
     destPort);
@@ -1194,8 +1191,8 @@ bool Graph::getLinkSource(ItemID destItem, sint destPort, InputConnection& inCon
 }
 
 bool Graph::getLinkDestiny(
-  ItemID                    sourceItem,
-  sint                      sourcePort,
+  ItemID sourceItem,
+  sint sourcePort,
   Vector<OutputConnection>& outConnections)
 {
   outConnections.clear();
@@ -1225,63 +1222,72 @@ bool Graph::linksOnNode(ItemID node, Vector<ItemID>& relatedLinks)
 
 Vec2 Graph::pinPos(NodePin pin) const
 {
-  Vec2 pos     = {0, 0};
+  Vec2 pos = {0, 0};
   bool located = false;
   assert(items_.find(pin.node) != items_.end());
   auto itemptr = docRoot()->getItem(pin.node);
   if (auto* node = itemptr->asNode()) {
     if (pin.type == NodePin::Type::In) {
-      pos     = node->inputPinPos(pin.index);
+      pos = node->inputPinPos(pin.index);
       located = true;
     } else {
-      pos     = node->outputPinPos(pin.index);
+      pos = node->outputPinPos(pin.index);
       located = true;
     }
   } else if (auto* router = itemptr->asRouter()) {
-    pos     = router->pos();
+    pos = router->pos();
     located = true;
   }
   if (!located)
-    msghub::errorf("can\'t locate pin {} on node {:x}", pin.index, pin.node.value());
+    msghub::errorf(
+      "无法定位节点{:x}上的引脚{}", //"can\'t locate pin {} on node {:x}"
+      pin.index,
+      pin.node.value());
   return pos;
 }
 
 Vec2 Graph::pinDir(NodePin pin) const
 {
-  Vec2 dir     = {1, 0};
+  Vec2 dir = {1, 0};
   bool located = false;
   assert(items_.find(pin.node) != items_.end());
   auto itemptr = docRoot()->getItem(pin.node);
   if (auto* node = itemptr->asNode()) {
     if (pin.type == NodePin::Type::In) {
-      dir     = node->inputPinDir(pin.index);
+      dir = node->inputPinDir(pin.index);
       located = true;
     } else {
-      dir     = node->outputPinDir(pin.index);
+      dir = node->outputPinDir(pin.index);
       located = true;
     }
   }
   if (!located)
-    msghub::errorf("can\'t locate pin {} on node {:x}", pin.index, pin.node.value());
+    msghub::errorf(
+      "无法定位节点{:x}上的引脚{}", //"can\'t locate pin {} on node {:x}"
+      pin.index,
+      pin.node.value());
   return dir;
 }
 
 Color Graph::pinColor(NodePin pin) const
 {
   Color color;
-  bool  located = false;
-  auto  itemptr = docRoot()->getItem(pin.node);
+  bool located = false;
+  auto itemptr = docRoot()->getItem(pin.node);
   if (auto* node = itemptr->asNode()) {
     if (pin.type == NodePin::Type::In) {
-      color   = node->inputPinColor(pin.index);
+      color = node->inputPinColor(pin.index);
       located = true;
     } else {
-      color   = node->outputPinColor(pin.index);
+      color = node->outputPinColor(pin.index);
       located = true;
     }
   }
   if (!located)
-    msghub::errorf("can\'t locate pin {} on node {:x}", pin.index, pin.node.value());
+    msghub::errorf(
+      "无法定位节点{:x}上的引脚{}", //"can\'t locate pin {} on node {:x}"
+      pin.index,
+      pin.node.value());
   return color;
 }
 
@@ -1297,14 +1303,14 @@ Vector<Vec2> Graph::calculatePath(
   // TODO: get rid of the magic numbers
   // TODO: respect dirs
   Vector<Vec2> path;
-  const float  LOOP_CORNER_SIZE = 8.f;
-  const float  EXTEND           = 16.f;
+  const float LOOP_CORNER_SIZE = 8.f;
+  const float EXTEND = 16.f;
 
-  float       xcenter = (start.x + end.x) * 0.5f;
-  float       ycenter = (start.y + end.y) * 0.5f;
-  float const dx      = end.x - start.x;
-  float const dy      = end.y - start.y;
-  auto        sign    = [](float x) { return x > 0 ? 1 : x < 0 ? -1 : 0; };
+  float xcenter = (start.x + end.x) * 0.5f;
+  float ycenter = (start.y + end.y) * 0.5f;
+  float const dx = end.x - start.x;
+  float const dy = end.y - start.y;
+  auto sign = [](float x) { return x > 0 ? 1 : x < 0 ? -1 : 0; };
 
   if (dy > 0 && abs(dx) / dy < 0.01f) {
     path.push_back(start);
@@ -1318,8 +1324,8 @@ Vector<Vec2> Graph::calculatePath(
     if (fabs(dx) <= fabs(dy) * 2) {
       xcenter = start.x - sign(dx) * std::max(startBound.width(), endBound.width());
     }
-    auto        endextend = end + Vec2{0, -EXTEND};
-    float const restdy    = dy - EXTEND * 2;
+    auto endextend = end + Vec2{0, -EXTEND};
+    float const restdy = dy - EXTEND * 2;
 
     path.push_back(start);
     path.push_back(start + Vec2{0, EXTEND});
@@ -1379,8 +1385,8 @@ bool Graph::serialize(Json& json) const
   // if (!Node::serialize(json))
   //   return false;
   Vector<Link*> links;
-  auto&         itemsection = json["items"];
-  auto&         linksection = json["links"];
+  auto& itemsection = json["items"];
+  auto& linksection = json["links"];
   for (auto id : items_) {
     auto itemptr = docRoot()->getItem(id);
     if (auto* link = itemptr->asLink())
@@ -1388,10 +1394,10 @@ bool Graph::serialize(Json& json) const
     else {
       Json itemdata;
       itemdata["id"] = id.value();
-      itemdata["f"]  = docRoot()->itemFactory()->factoryName(itemptr);
+      itemdata["f"] = docRoot()->itemFactory()->factoryName(itemptr);
       if (!itemptr->serialize(itemdata)) {
         msghub::errorf(
-          "failed to serialize item {:x} ({})",
+          "序列化项失败 { : x}({}) ", // failed to serialize item
           id.value(),
           docRoot()->itemFactory()->factoryName(itemptr));
         return false;
@@ -1420,9 +1426,9 @@ bool Graph::deserialize(Json const& json)
 {
   auto doc = docRoot();
 
-  HashMap<UID, ItemID>    uidmap;    // uid to id
-  HashMap<size_t, ItemID> idmap;     // old id to new id
-  HashMap<UID, ItemID>    uidoldmap; // uid to old id
+  HashMap<UID, ItemID> uidmap;    // uid to id
+  HashMap<size_t, ItemID> idmap;  // old id to new id
+  HashMap<UID, ItemID> uidoldmap; // uid to old id
   for (auto&& itemdata : json["items"])
     if (itemdata.contains("uid"))
       uidoldmap[uidFromString(String(itemdata["uid"]))] = ItemID(itemdata["id"].get<size_t>());
@@ -1432,7 +1438,7 @@ bool Graph::deserialize(Json const& json)
     if (uidoldmap.find(item->uid()) == uidoldmap.end())
       redundantItems.insert(id);
     else {
-      uidmap[item->uid()]                   = item->id();
+      uidmap[item->uid()] = item->id();
       idmap[uidoldmap[item->uid()].value()] = item->id();
     }
   }
@@ -1441,33 +1447,33 @@ bool Graph::deserialize(Json const& json)
     auto uid = itemdata.contains("uid") ? uidFromString(String(itemdata["uid"])) : UID();
     if (auto itr = uidmap.find(uid); itr != uidmap.end()) {
       if (!get(itr->second)->deserialize(itemdata)) {
-        msghub::errorf("failed to import item {}", itemdata.dump(2));
+        msghub::errorf("导入项目失败 {}", itemdata.dump(2)); // failed to import item
         return false;
       }
     } else {
-      String       factory = itemdata["f"];
+      String factory = itemdata["f"];
       GraphItemPtr newitem;
       if (factory.empty() || factory == "node") {
         String type = itemdata["type"];
-        newitem     = nodeFactory()->createNode(this, type);
+        newitem = nodeFactory()->createNode(this, type);
       } else {
         newitem = docRoot()->itemFactory()->make(this, factory);
       }
       if (!newitem || !newitem->deserialize(itemdata)) {
-        msghub::errorf("failed to import item {}", itemdata.dump(2));
+        msghub::errorf("导入项目失败 {}", itemdata.dump(2)); // failed to import item
         return false;
       }
-      auto newid             = add(newitem);
-      idmap[itemdata["id"]]  = newid;
+      auto newid = add(newitem);
+      idmap[itemdata["id"]] = newid;
       uidmap[newitem->uid()] = newid;
     }
   }
 
   HashSet<OutputConnection> newlinks;
   for (auto&& linkdata : json["links"]) {
-    auto const&      from   = linkdata["from"];
-    auto const&      to     = linkdata["to"];
-    InputConnection  incon  = {idmap.at(from["id"]), sint(from["port"])};
+    auto const& from = linkdata["from"];
+    auto const& to = linkdata["to"];
+    InputConnection incon = {idmap.at(from["id"]), sint(from["port"])};
     OutputConnection outcon = {idmap.at(to["id"]), sint(to["port"])};
     newlinks.insert(outcon);
     auto linkitr = links_.find(outcon);
@@ -1477,8 +1483,10 @@ bool Graph::deserialize(Json const& json)
       else
         msghub::errorf(
           "link from {}({}) to {}({}) has already been set",
-          incon.sourceItem.value(), incon.sourcePort,
-          outcon.destItem.value(), outcon.destPort);
+          incon.sourceItem.value(),
+          incon.sourcePort,
+          outcon.destItem.value(),
+          outcon.destPort);
     }
 
     links_[outcon] = incon;
@@ -1515,7 +1523,7 @@ bool Graph::checkLoopBottomUp(ItemID target, Vector<ItemID>& loop, HashSet<ItemI
 
     HashSet<ItemID> visited;
     HashSet<ItemID> stack;
-    Vector<ItemID>  loop;
+    Vector<ItemID> loop;
 
     bool isVisited(ItemID id) const { return visited.find(id) != visited.end(); }
     bool isInStack(ItemID id) const { return stack.find(id) != stack.end(); }
@@ -1592,17 +1600,17 @@ bool Graph::checkLoopBottomUp(ItemID target, Vector<ItemID>& loop, HashSet<ItemI
 }
 
 bool Graph::traverse(
-  GraphTraverseResult&  result,
+  GraphTraverseResult& result,
   Vector<ItemID> const& startPoints,
-  bool                  topdown,
-  bool                  allowLoop)
+  bool topdown,
+  bool allowLoop)
 {
-  auto& nodes    = result.nodes_;
-  auto& inputs   = result.inputs_;
-  auto& outputs  = result.outputs_;
+  auto& nodes = result.nodes_;
+  auto& inputs = result.inputs_;
+  auto& outputs = result.outputs_;
   auto& closures = result.closures_;
-  auto& idmap    = result.idmap_;
-  using Range    = GraphTraverseResult::Range;
+  auto& idmap = result.idmap_;
+  using Range = GraphTraverseResult::Range;
 
   nodes.clear();
   inputs.clear();
@@ -1610,8 +1618,8 @@ bool Graph::traverse(
   closures.clear();
 
   HashMap<NodePtr, size_t> nodeIndex; // nodeptr -> index in result.nodes_
-  HashSet<ItemID>          visited;
-  std::deque<ItemID>       toVisit;
+  HashSet<ItemID> visited;
+  std::deque<ItemID> toVisit;
 
   auto indexofnode = [&nodeIndex](GraphItemPtr item) -> size_t {
     if (!item || !item->asNode())
@@ -1626,7 +1634,7 @@ bool Graph::traverse(
   std::unordered_multimap<ItemID, ItemID> linkDown;
   HashSet<Graph*> referencedGraphs; // extraDependencies can reference to other graphs
   HashSet<Graph*> visitedGraphs;
-  auto            traceLinks = [&](Graph* graph) {
+  auto traceLinks = [&](Graph* graph) {
     for (auto const& link : graph->links_) {
       linkDown.emplace(link.second.sourceItem, link.first.destItem);
       linkUp.emplace(link.first.destItem, link.second.sourceItem);
@@ -1664,8 +1672,8 @@ bool Graph::traverse(
 
   HashSet<ItemID> visitedWithNoLoop;
   while (!toVisit.empty()) {
-    auto    id      = toVisit.front();
-    auto    itemptr = get(id);
+    auto id = toVisit.front();
+    auto itemptr = get(id);
     NodePtr nodeptr = nullptr;
     toVisit.pop_front();
 
@@ -1681,8 +1689,8 @@ bool Graph::traverse(
         if (visitedWithNoLoop.find(id) != visitedWithNoLoop.end()) {
           // pass;
         } else if (Vector<ItemID> loopPath; checkLoopBottomUp(id, loopPath, &visitedWithNoLoop)) {
-          msghub::error("loop detected, which is not allowed:");
-          msghub::error("loop path: {");
+          msghub::error("检测到循环，这是禁止的："); // loop detected, which is not allowed:
+          msghub::error("环路径：{");
           String name;
           loopPath.push_back(loopPath.front());
           for (auto id : loopPath) {
@@ -1695,7 +1703,7 @@ bool Graph::traverse(
               name = "GraphItem";
             msghub::errorf("  {}({:x})", name, id.value());
           }
-          msghub::error("} // loop path");
+          msghub::error("} // 环路径"); // loop path
           return false;
         }
       }
@@ -1704,9 +1712,9 @@ bool Graph::traverse(
         if (auto itr = nodeIndex.find(nodeptr); itr != nodeIndex.end()) {
           nodes.push_back(nodeptr);
           nodes[itr->second] = nullptr;
-          itr->second        = nodes.size() - 1;
+          itr->second = nodes.size() - 1;
         } else {
-          msghub::error("visited node should have a index");
+          msghub::error("访问的节点应该有一个索引"); // visited node should have a index
           assert(false);
         }
       }
@@ -1737,24 +1745,24 @@ bool Graph::traverse(
       break;
     if (r == w)
       continue;
-    nodes[w]            = nodes[r];
+    nodes[w] = nodes[r];
     nodeIndex[nodes[w]] = w;
   }
   nodes.resize(denseSize);
 
   for (size_t i = 0, n = nodes.size(); i < n; ++i) {
-    auto  id          = nodes[i]->id();
-    auto  inputbegin  = inputs.size();
-    int   ninput      = 0;
-    auto  outputbegin = outputs.size();
-    int   noutput     = 0;
-    auto* graph       = nodes[i]->parent();
+    auto id = nodes[i]->id();
+    auto inputbegin = inputs.size();
+    int ninput = 0;
+    auto outputbegin = outputs.size();
+    int noutput = 0;
+    auto* graph = nodes[i]->parent();
     if (Vector<ItemID> links; graph->linksOnNode(id, links)) {
       for (auto linkid : links) {
         if (auto link = graph->get(linkid)->asLink()) {
           if (link->output().destItem == id) { // I am the dest
-            NodePtr inNode    = nullptr;
-            auto    inputItem = graph->get(link->input().sourceItem);
+            NodePtr inNode = nullptr;
+            auto inputItem = graph->get(link->input().sourceItem);
             while (!inputItem->asNode()) {
               if (InputConnection ic; graph->getLinkSource(inputItem->id(), 0, ic)) {
                 inputItem = graph->get(ic.sourceItem);
@@ -1803,9 +1811,9 @@ bool Graph::traverse(
 }
 
 bool Graph::travelTopDown(
-  GraphTraverseResult&  result,
+  GraphTraverseResult& result,
   Vector<ItemID> const& sourceItems,
-  bool                  allowLoop)
+  bool allowLoop)
 {
   return traverse(result, sourceItems, true, allowLoop);
 }
@@ -1823,9 +1831,9 @@ bool Graph::travelBottomUp(GraphTraverseResult& result, ItemID destItem, bool al
 }
 
 bool Graph::travelBottomUp(
-  GraphTraverseResult&  result,
+  GraphTraverseResult& result,
   Vector<ItemID> const& destItems,
-  bool                  allowLoop)
+  bool allowLoop)
 {
   return traverse(result, destItems, false, allowLoop);
 }
@@ -1890,11 +1898,11 @@ size_t NodeGraphDocHistory::commit(String msg)
 {
   Json json;
   if (doc_ && doc_->root()->serialize(json)) {
-    size_t          versionNumber = versions_.size();
-    String          data          = json.dump();
-    auto            size          = data.size();
+    size_t versionNumber = versions_.size();
+    String data = json.dump();
+    auto size = data.size();
     Vector<uint8_t> compressedData(mz_compressBound(size));
-    mz_ulong        compressedLen = compressedData.size();
+    mz_ulong compressedLen = compressedData.size();
     mz_compress(
       compressedData.data(),
       &compressedLen,
@@ -1930,7 +1938,7 @@ bool NodeGraphDocHistory::checkout(size_t version)
     return false;
   }
   ++atEditGroupLevel_; // suspend auto commit from editGroups
-  String   uncompressedData;
+  String uncompressedData;
   mz_ulong uncompressedSize = versions_[version].uncompressedSize;
   uncompressedData.resize(uncompressedSize);
   auto result = mz_uncompress(
@@ -1940,7 +1948,7 @@ bool NodeGraphDocHistory::checkout(size_t version)
     versions_[version].data.size());
   if (result != MZ_OK)
     throw std::runtime_error("failed to decompress history data");
-  Json json    = Json::parse(uncompressedData);
+  Json json = Json::parse(uncompressedData);
   bool succeed = doc_->root()->deserialize(json);
   --atEditGroupLevel_;
 
@@ -2028,7 +2036,7 @@ try {
   }
 
   auto content = filterFileInput(String{std::istreambuf_iterator<char>(infile), {}});
-  Json injson  = Json::parse(content);
+  Json injson = Json::parse(content);
 
   auto newgraph = GraphPtr(nodeFactory_->createRootGraph(this));
   if (!newgraph->deserialize(injson["root"])) {
@@ -2036,9 +2044,9 @@ try {
     return false;
   }
   // TODO: update viewers
-  root_     = newgraph;
+  root_ = newgraph;
   savePath_ = path;
-  title_    = std::filesystem::path(savePath_).stem().u8string();
+  title_ = std::filesystem::path(savePath_).stem().u8string();
   history_.reset(false);
   history_.commit("load " + path);
   history_.markSaved();
@@ -2064,18 +2072,15 @@ bool NodeGraphDoc::save()
   }
 }
 
-void NodeGraphDoc::close()
-{
-  root_.reset();
-}
+void NodeGraphDoc::close() { root_.reset(); }
 
 bool NodeGraphDoc::saveAs(String path)
 {
   if (saveTo(path)) {
     savePath_ = std::move(path);
-    title_    = std::filesystem::path(savePath_).stem().u8string();
+    title_ = std::filesystem::path(savePath_).stem().u8string();
     history_.markSaved();
-    dirty_    = false;
+    dirty_ = false;
     readonly_ = false;
     return true;
   } else {
@@ -2112,13 +2117,13 @@ void NodeGraphDoc::notifyGraphModified(Graph* graph)
 MessageHub MessageHub::instance_;
 
 void MessageHub::addMessage(
-  String                message,
-  MessageHub::Category  category,
+  String message,
+  MessageHub::Category category,
   MessageHub::Verbosity verbosity)
 {
   std::unique_lock lock(mutex_);
-  auto             time  = std::chrono::system_clock::now();
-  auto&            queue = messageCategories_[static_cast<int>(category)];
+  auto time = std::chrono::system_clock::now();
+  auto& queue = messageCategories_[static_cast<int>(category)];
   if (category == Category::Log)
     spdlog::log(static_cast<spdlog::level::level_enum>(verbosity), message);
 
@@ -2130,7 +2135,7 @@ void MessageHub::addMessage(
 void MessageHub::clear(Category category)
 {
   std::unique_lock lock(mutex_);
-  auto&            queue = messageCategories_[static_cast<int>(category)];
+  auto& queue = messageCategories_[static_cast<int>(category)];
   queue.clear();
 }
 
