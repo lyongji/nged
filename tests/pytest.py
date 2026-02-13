@@ -1,4 +1,4 @@
-from ngpy import *
+from nged import Node, Graph, NodeDesc, NodeFactory, GraphItem, builtinGraphItemFactory, Document
 
 class DummyNode(Node):
     def __init__(self, parent, definition):
@@ -29,11 +29,11 @@ class DummyItem(GraphItem):
 print('----init factory----')
 
 itemFactory = builtinGraphItemFactory()
-itemFactory.set('xx', True, DummyItem)
+itemFactory.register('xx', True, DummyItem)
 
 nodeFactory = MyNodeFactory()
 
-dummyDef = NodeDef({
+dummyDef = NodeDesc({
         'type': 'dummy',
         'label': 'Dummy',
         'category': 'Dummy Category',
@@ -59,6 +59,7 @@ print(f'xx.factory = {itemFactory.factoryName(xx)}')
 #hitTest(xx, Vec2(0,0))
 
 print('----make dummy node----')
+doc.makeRoot()
 yy = doc.root.createNode('dummy')
 zz = doc.root.createNode('dummy')
 

@@ -1347,6 +1347,7 @@ PYBIND11_MODULE(ngpy, m) {
     .def_property_readonly("savePath", &nged::NodeGraphDoc::savePath)
     .def_property_readonly("root", &nged::NodeGraphDoc::root)
     .def_property("readonly", &nged::NodeGraphDoc::readonly, &nged::NodeGraphDoc::setReadonly)
+    .def("makeRoot", &nged::NodeGraphDoc::makeRoot)
     .def("open", &nged::NodeGraphDoc::open, py::arg("path"))
     .def("save", &nged::NodeGraphDoc::save)
     .def("saveAs", &nged::NodeGraphDoc::saveAs, py::arg("path"))
