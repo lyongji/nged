@@ -1567,6 +1567,105 @@ bool NodeGraphEditor::saveDocAs(DocPtr doc, StringView inputpath)
   return succeed;
 }
 
+void NodeGraphEditor::setResponser(NodeGraphEditResponserPtr responser)
+{
+  responser_ = responser;
+  // Clear previous connections
+  for (auto& disconnect : responserDisconnectors_)
+    disconnect();
+  responserDisconnectors_.clear();
+
+  if (!responser_) return;
+
+  std::weak_ptr<NodeGraphEditResponser> weakResp = responser_;
+
+  auto connect = [this, weakResp](auto& signal, auto callback) {
+    auto handle = signal.connect(callback);
+    responserDisconnectors_.push_back([&signal, handle] { signal.disconnect(handle); });
+  };
+
+  connect(eventHub_.requestAddItem, [weakResp](Graph* g, GraphItem* i, GraphItem** r) {
+    if (auto resp = weakResp.lock()) return resp->beforeItemAdded(g, i, r);
+    return true;
+  });
+  connect(eventHub_.onItemAdded, [weakResp](Graph* g, GraphItem* i) {
+    if (auto resp = weakResp.lock()) resp->afterItemAdded(g, i);
+  });
+  connect(eventHub_.requestRemoveItem, [weakResp](Graph* g, GraphItem* i) {
+    if (auto resp = weakResp.lock()) return resp->beforeItemRemoved(g, i);
+    return true;
+  });
+  connect(eventHub_.onItemRemoved, [weakResp](GraphItem* i) {
+    if (auto resp = weakResp.lock()) resp->onItemRemoved(i);
+  });
+  connect(eventHub_.requestRenameNode, [weakResp](Graph* g, Node* n) {
+    if (auto resp = weakResp.lock()) return resp->beforeNodeRenamed(g, n);
+    return true;
+  });
+  connect(eventHub_.onNodeRenamed, [weakResp](Graph* g, Node* n) {
+    if (auto resp = weakResp.lock()) resp->afterNodeRenamed(g, n);
+  });
+  connect(eventHub_.requestRemoveView, [weakResp](GraphView* v) {
+    if (auto resp = weakResp.lock()) return resp->beforeViewRemoved(v);
+    return true;
+  });
+  connect(eventHub_.onViewRemoved, [weakResp](GraphView* v) {
+    if (auto resp = weakResp.lock()) resp->afterViewRemoved(v);
+  });
+  connect(eventHub_.beforeViewUpdate, [weakResp](GraphView* v) {
+    if (auto resp = weakResp.lock()) resp->beforeViewUpdate(v);
+  });
+  connect(eventHub_.afterViewUpdate, [weakResp](GraphView* v) {
+    if (auto resp = weakResp.lock()) resp->afterViewUpdate(v);
+  });
+  connect(eventHub_.beforeViewDraw, [weakResp](GraphView* v) {
+    if (auto resp = weakResp.lock()) resp->beforeViewDraw(v);
+  });
+  connect(eventHub_.afterViewDraw, [weakResp](GraphView* v) {
+    if (auto resp = weakResp.lock()) resp->afterViewDraw(v);
+  });
+  connect(eventHub_.onItemMoved, [weakResp](GraphItem* i) {
+    if (auto resp = weakResp.lock()) resp->onItemMoved(i);
+  });
+  connect(eventHub_.onItemModified, [weakResp](GraphItem* i) {
+    if (auto resp = weakResp.lock()) resp->onItemModified(i);
+  });
+  connect(eventHub_.onInspect, [weakResp](InspectorView* v, GraphItem** i, size_t c) {
+    if (auto resp = weakResp.lock()) resp->onInspect(v, i, c);
+  });
+  connect(eventHub_.afterPaste, [weakResp](Graph* g, GraphItem** i, size_t c) {
+    if (auto resp = weakResp.lock()) resp->afterPaste(g, i, c);
+  });
+  connect(eventHub_.onItemClicked, [weakResp](NetworkView* v, GraphItem* i, int b) {
+    if (auto resp = weakResp.lock()) resp->onItemClicked(v, i, b);
+  });
+  connect(eventHub_.onItemDoubleClicked, [weakResp](NetworkView* v, GraphItem* i, int b) {
+    if (auto resp = weakResp.lock()) resp->onItemDoubleClicked(v, i, b);
+  });
+  connect(eventHub_.onItemHovered, [weakResp](NetworkView* v, GraphItem* i) {
+    if (auto resp = weakResp.lock()) resp->onItemHovered(v, i);
+  });
+  connect(eventHub_.onItemSelected, [weakResp](NetworkView* v, GraphItem* i) {
+    if (auto resp = weakResp.lock()) resp->onItemSelected(v, i);
+  });
+  connect(eventHub_.onItemDeselected, [weakResp](NetworkView* v, GraphItem* i) {
+    if (auto resp = weakResp.lock()) resp->onItemDeselected(v, i);
+  });
+  connect(eventHub_.onSelectionChanged, [weakResp](NetworkView* v) {
+    if (auto resp = weakResp.lock()) resp->onSelectionChanged(v);
+  });
+  connect(eventHub_.requestLinkSet, [weakResp](Graph* g, InputConnection s, OutputConnection d) {
+    if (auto resp = weakResp.lock()) return resp->beforeLinkSet(g, s, d);
+    return true;
+  });
+  connect(eventHub_.onLinkSet, [weakResp](Link* l) {
+    if (auto resp = weakResp.lock()) resp->onLinkSet(l);
+  });
+  connect(eventHub_.onLinkRemoved, [weakResp](Link* l) {
+    if (auto resp = weakResp.lock()) resp->onLinkRemoved(l);
+  });
+}
+
 void NodeGraphEditor::update(float dt)
 {
   for (auto&& view : pendingAddViews_)
@@ -1577,21 +1676,19 @@ void NodeGraphEditor::update(float dt)
     if (doc && doc.use_count() <= dyingRefCount_+2) // <- one held by the `doc` var here, one held by `view`
       beforeDocRemoved(doc);
     views_.erase(view);
-    if (responser_)
-      responser_->afterViewRemoved(view.get());
+    eventHub_.onViewRemoved.emit(view.get());
   }
   pendingRemoveViews_.clear();
 
   for (auto const& view : views_) {
-    if (responser_)
-      responser_->beforeViewUpdate(view.get());
+    eventHub_.beforeViewUpdate.emit(view.get());
 
     view->update(dt);
 
-    if (responser_)
-      responser_->afterViewUpdate(view.get());
+    eventHub_.afterViewUpdate.emit(view.get());
   }
 }
+
 
 void NodeGraphEditor::notifyGraphModified(Graph* graph)
 {
@@ -1638,12 +1735,13 @@ bool NodeGraphEditor::closeView(ViewPtr view, bool needConfirm)
 
 void NodeGraphEditor::removeView(ViewPtr view)
 {
-  if (responser_ && !responser_->beforeViewRemoved(view.get()))
+  if (!eventHub_.requestRemoveView.invoke(view.get()))
     return;
   pendingRemoveViews_.insert(view);
   if (views_.size() == pendingRemoveViews_.size())
     this->createNewDocAndDefaultViews(); // keep at least one view
 }
+
 
 bool NodeGraphEditor::agreeToQuit() const
 {
@@ -1677,7 +1775,7 @@ NodePtr NodeGraphEditor::createNode(Graph* graph, StringView type)
 {
   auto nodeptr = NodePtr(graph->nodeFactory()->createNode(graph, type));
   GraphItem* replacement = nullptr;
-  if (responser_ && !responser_->beforeItemAdded(graph, nodeptr.get(), &replacement))
+  if (!eventHub_.requestAddItem.invoke(graph, nodeptr.get(), &replacement))
     return nullptr;
   if (replacement) {
     if (auto* nodeptr = replacement->asNode())
@@ -1687,32 +1785,28 @@ NodePtr NodeGraphEditor::createNode(Graph* graph, StringView type)
   }
   graph->add(nodeptr);
   graph->docRoot()->history().commitIfAppropriate("add node");
-  if (responser_)
-    responser_->afterItemAdded(graph, nodeptr.get());
+  eventHub_.onItemAdded.emit(graph, nodeptr.get());
   return nodeptr;
 }
 
 ItemID NodeGraphEditor::addItem(Graph* graph, GraphItemPtr itemptr)
 {
   GraphItem* replacement = nullptr;
-  if (responser_ && !responser_->beforeItemAdded(graph, itemptr.get(), &replacement))
+  if (!eventHub_.requestAddItem.invoke(graph, itemptr.get(), &replacement))
     return ID_None;
   if (replacement)
     return replacement->id();
   auto id = graph->add(itemptr);
   graph->docRoot()->history().commitIfAppropriate("add item");
-  if (responser_)
-    responser_->afterItemAdded(graph, itemptr.get());
+  eventHub_.onItemAdded.emit(graph, itemptr.get());
   return id;
 }
 
 void NodeGraphEditor::confirmItemPlacements(Graph* graph, HashSet<ItemID> const& items)
 {
-  if (responser_) {
-    for (auto id: items) {
-      auto itemptr = graph->get(id);
-      responser_->onItemMoved(itemptr.get());
-    }
+  for (auto id: items) {
+    auto itemptr = graph->get(id);
+    eventHub_.onItemMoved.emit(itemptr.get());
   }
   for (auto id: graph->items()) {
     auto itemptr = graph->get(id);
@@ -1744,7 +1838,7 @@ void NodeGraphEditor::removeItems(Graph* graph, HashSet<ItemID> const& items, Ha
   HashMap<OutputConnection, InputConnection> linksToRestore;
   for (auto id: items) {
     auto itemptr = graph->get(id);
-    if (responser_ && !responser_->beforeItemRemoved(graph, itemptr.get())) {
+    if (!eventHub_.requestRemoveItem.invoke(graph, itemptr.get())) {
       if (remaining) remaining->insert(id);
     } else {
       if (auto* linkptr = itemptr->asLink())
@@ -1754,10 +1848,8 @@ void NodeGraphEditor::removeItems(Graph* graph, HashSet<ItemID> const& items, Ha
     }
   }
   if (items.size() == linksToRemove.size()) { // delete links only if there are nothing else selected
-    if (responser_) {
-      for (auto* linkptr : linksToRemove)
-        responser_->onLinkRemoved(linkptr);
-    }
+    for (auto* linkptr : linksToRemove)
+      eventHub_.onLinkRemoved.emit(linkptr);
     for (auto* linkptr : linksToRemove)
       itemsToRemove.insert(linkptr->id());
   } else { // otherwise, try to restore links
@@ -1804,8 +1896,7 @@ bool NodeGraphEditor::setLink(Graph* graph, NetworkView* fromView, ItemID source
     fromView->addFadingText("link here with current input is not allowed", errPos);
     return false;
   }
-  if (responser_ &&
-      !responser_->beforeLinkSet(
+  if (!eventHub_.requestLinkSet.invoke(
         graph, InputConnection{sourceItem, sourcePort}, OutputConnection{destItem, destPort})) {
     if (fromView) {
       auto errPos = graph->pinPos(NodePin{destItem, destPort, NodePin::Type::In});
@@ -1815,13 +1906,12 @@ bool NodeGraphEditor::setLink(Graph* graph, NetworkView* fromView, ItemID source
   }
   auto existing = graph->getLink(destItem, destPort);
   bool anythingDone = false;
-  if (existing && responser_) {
-    responser_->onLinkRemoved(existing.get());
+  if (existing) {
+    eventHub_.onLinkRemoved.emit(existing.get());
     anythingDone = true;
   }
   if (auto linkptr = graph->setLink(sourceItem, sourcePort, destItem, destPort)) {
-    if (responser_)
-      responser_->onLinkSet(linkptr.get());
+    eventHub_.onLinkSet.emit(linkptr.get());
     auto srcItemPtr = graph->get(sourceItem);
     auto dstItemPtr = graph->get(destItem);
     if (auto* dstdye = dstItemPtr->asDyeable(); dstdye && !dstdye->hasSetColor()) {
@@ -1880,8 +1970,7 @@ void NodeGraphEditor::removeLink(Graph* graph, ItemID destItem, sint destPort)
   auto existing = graph->getLink(destItem, destPort);
   if (!existing)
     return;
-  if (responser_)
-    responser_->onLinkRemoved(existing.get());
+  eventHub_.onLinkRemoved.emit(existing.get());
   graph->removeLink(destItem, destPort);
   graph->docRoot()->history().commitIfAppropriate("remove link");
 }

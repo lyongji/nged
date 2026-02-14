@@ -1,9 +1,99 @@
 #pragma once
 
 #include "ngdoc.h"
+#include "event.h"
 namespace nged {
 
-// View {{{
+class GraphView;
+class InspectorView;
+class NetworkView;
+
+// Responser {{{
+// NodeGraphEditResponser acts as a hook on certain edit events
+// the reason NOT to put `bool accept(GraphItem* item) const`
+// or things like that in Graph class is,
+// this hook can potentially do more than that -
+// e.g. make a graph / view read only, giving visual feedbacks
+class NodeGraphEditResponser
+{
+public:
+  virtual ~NodeGraphEditResponser() {}
+
+  // return false prevents item from being added
+  virtual bool beforeItemAdded(Graph* graph, GraphItem* item, GraphItem** replacement) { return true; }
+  virtual void afterItemAdded(Graph* graph, GraphItem* item) {}
+
+  // return false prevents item from being removed
+  virtual bool beforeItemRemoved(Graph* graph, GraphItem* item) { return true; }
+  //virtual void afterItemRemoved(Graph* graph, GraphItem* item) {}
+
+  // return false prevents node from being renamed
+  virtual bool beforeNodeRenamed(Graph* graph, Node* node) { return true; }
+  virtual void afterNodeRenamed(Graph* graph, Node* node) {}
+
+  // return false prevents view from being removed
+  virtual bool beforeViewRemoved(GraphView* view) { return true; }
+  virtual void afterViewRemoved(GraphView* view) {}
+
+  virtual void beforeViewUpdate(GraphView* view) {}
+  virtual void afterViewUpdate(GraphView* view) {}
+  virtual void beforeViewDraw(GraphView* view) {}
+  virtual void afterViewDraw(GraphView* view) {}
+
+  virtual void onItemAdded(GraphItem* item) {}
+  virtual void onItemMoved(GraphItem* item) {}
+  virtual void onItemModified(GraphItem* item) {}
+  virtual void onItemRemoved(GraphItem* item) {}
+
+  virtual void onInspect(InspectorView* view, GraphItem** items, size_t count) {}
+  virtual void afterPaste(Graph* graph, GraphItem** new_items, size_t count) {}
+
+  // button: 0:left, 1:right, 2:middle
+  virtual void onItemClicked(NetworkView* view, GraphItem* item, int button) {}
+  virtual void onItemDoubleClicked(NetworkView* view, GraphItem* item, int button) {}
+  virtual void onItemHovered(NetworkView* view, GraphItem* item) {}
+  virtual void onItemSelected(NetworkView* view, GraphItem* item) {}
+  virtual void onItemDeselected(NetworkView* view, GraphItem* item) {}
+  virtual void onSelectionChanged(NetworkView* view) {}
+
+  // return false prevents the link from being set
+  virtual bool beforeLinkSet(Graph* graph, InputConnection src, OutputConnection dst) { return true; }
+  virtual void onLinkSet(Link* link) {}
+  virtual void onLinkRemoved(Link* link) {}
+};
+using NodeGraphEditResponserPtr = std::shared_ptr<NodeGraphEditResponser>;
+// }}} Responser
+
+struct GraphEventHub
+{
+  Request<Graph*, GraphItem*, GraphItem**>           requestAddItem;
+  Signal<Graph*, GraphItem*>                         onItemAdded;
+  Request<Graph*, GraphItem*>                        requestRemoveItem;
+  Signal<GraphItem*>                                 onItemRemoved; // generic item removed
+  Request<Graph*, Node*>                             requestRenameNode;
+  Signal<Graph*, Node*>                              onNodeRenamed;
+  Request<GraphView*>                                requestRemoveView;
+  Signal<GraphView*>                                 onViewRemoved;
+  Signal<GraphView*>                                 beforeViewUpdate;
+  Signal<GraphView*>                                 afterViewUpdate;
+  Signal<GraphView*>                                 beforeViewDraw;
+  Signal<GraphView*>                                 afterViewDraw;
+  Signal<GraphItem*>                                 onItemMoved;
+  Signal<GraphItem*>                                 onItemModified;
+  Signal<InspectorView*, GraphItem**, size_t>        onInspect;
+  Signal<Graph*, GraphItem**, size_t>                afterPaste;
+  Signal<NetworkView*, GraphItem*, int>              onItemClicked;
+  Signal<NetworkView*, GraphItem*, int>              onItemDoubleClicked;
+  Signal<NetworkView*, GraphItem*>                   onItemHovered;
+  Signal<NetworkView*, GraphItem*>                   onItemSelected;
+  Signal<NetworkView*, GraphItem*>                   onItemDeselected;
+  Signal<NetworkView*>                               onSelectionChanged;
+  Request<Graph*, InputConnection, OutputConnection> requestLinkSet;
+  Signal<Link*>                                      onLinkSet;
+  Signal<Link*>                                      onLinkRemoved;
+};
+
+// Command & Command Manager {{{
 class GraphView : public std::enable_shared_from_this<GraphView>
 {
 protected:
@@ -363,61 +453,6 @@ public:
 };
 // }}} Inspector
 
-// Responser {{{
-// NodeGraphEditResponser acts as a hook on certain edit events
-// the reason NOT to put `bool accept(GraphItem* item) const`
-// or things like that in Graph class is,
-// this hook can potentially do more than that -
-// e.g. make a graph / view read only, giving visual feedbacks
-class NodeGraphEditResponser
-{
-public:
-  virtual ~NodeGraphEditResponser() {}
-
-  // return false prevents item from being added
-  virtual bool beforeItemAdded(Graph* graph, GraphItem* item, GraphItem** replacement) { return true; }
-  virtual void afterItemAdded(Graph* graph, GraphItem* item) {}
-
-  // return false prevents item from being removed
-  virtual bool beforeItemRemoved(Graph* graph, GraphItem* item) { return true; }
-  //virtual void afterItemRemoved(Graph* graph, GraphItem* item) {}
-
-  // return false prevents node from being renamed
-  virtual bool beforeNodeRenamed(Graph* graph, Node* node) { return true; }
-  virtual void afterNodeRenamed(Graph* graph, Node* node) {}
-
-  // return false prevents view from being removed
-  virtual bool beforeViewRemoved(GraphView* view) { return true; }
-  virtual void afterViewRemoved(GraphView* view) {}
-
-  virtual void beforeViewUpdate(GraphView* view) {}
-  virtual void afterViewUpdate(GraphView* view) {}
-  virtual void beforeViewDraw(GraphView* view) {}
-  virtual void afterViewDraw(GraphView* view) {}
-
-  virtual void onItemAdded(GraphItem* item) {}
-  virtual void onItemMoved(GraphItem* item) {}
-  virtual void onItemModified(GraphItem* item) {}
-  virtual void onItemRemoved(GraphItem* item) {}
-
-  virtual void onInspect(InspectorView* view, GraphItem** items, size_t count) {}
-  virtual void afterPaste(Graph* graph, GraphItem** new_items, size_t count) {}
-
-  // button: 0:left, 1:right, 2:middle
-  virtual void onItemClicked(NetworkView* view, GraphItem* item, int button) {}
-  virtual void onItemDoubleClicked(NetworkView* view, GraphItem* item, int button) {}
-  virtual void onItemHovered(NetworkView* view, GraphItem* item) {}
-  virtual void onItemSelected(NetworkView* view, GraphItem* item) {}
-  virtual void onItemDeselected(NetworkView* view, GraphItem* item) {}
-  virtual void onSelectionChanged(NetworkView* view) {}
-
-  // return false prevents the link from being set
-  virtual bool beforeLinkSet(Graph* graph, InputConnection src, OutputConnection dst) { return true; }
-  virtual void onLinkSet(Link* link) {}
-  virtual void onLinkRemoved(Link* link) {}
-};
-using NodeGraphEditResponserPtr = std::shared_ptr<NodeGraphEditResponser>;
-// }}} Responser
 
 // Command & Command Manager {{{
 enum class ModKey
@@ -592,6 +627,8 @@ protected:
     };
 
   NodeGraphEditResponserPtr responser_;
+  Vector<std::function<void()>> responserDisconnectors_;
+  GraphEventHub             eventHub_;
 
   void removeView(ViewPtr view);
 
@@ -602,7 +639,9 @@ public:
   void setItemFactory(GraphItemFactoryPtr factory) { itemFactory_ = std::move(factory); }
   void setViewFactory(ViewFactoryPtr factory) { viewFactory_ = std::move(factory); }
   void setNodeFactory(NodeFactoryPtr factory) { nodeFactory_ = factory; }
-  void setResponser(NodeGraphEditResponserPtr responser) { responser_ = responser; }
+  void setResponser(NodeGraphEditResponserPtr responser);
+  GraphEventHub& events() { return eventHub_; }
+
   template <class T>
   std::enable_if_t<std::is_base_of_v<NodeGraphDoc, T>, void>
   setDocType()
