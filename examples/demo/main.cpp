@@ -146,7 +146,6 @@ class DemoApp: public nged::App
     App::init();
 
     editor = nged::newImGuiNodeGraphEditor();
-    editor->setResponser(std::make_shared<nged::DefaultImGuiResponser>());
     editor->setItemFactory(nged::addImGuiItems(nged::defaultGraphItemFactory()));
     editor->setViewFactory(nged::defaultViewFactory());
     editor->setNodeFactory(std::make_shared<MyNodeFactory>());

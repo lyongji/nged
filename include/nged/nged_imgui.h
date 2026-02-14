@@ -148,14 +148,6 @@ public:
 };
 // }}}
 
-// Responser {{{
-class DefaultImGuiResponser : public NodeGraphEditResponser
-{
-public:
-  void onInspect(InspectorView* view, GraphItem** items, size_t count) override;
-};
-// }}} Responser
-
 // ImGuiNodeGraphEditor {{{
 class ImGuiNodeGraphEditor : public NodeGraphEditor
 {

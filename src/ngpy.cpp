@@ -452,361 +452,312 @@ void PyImGuiNodeGraphEditor::onParmModified(PyNode* node, parmscript::hashset<pa
   }
 }
 
+static void initPyInteractions(PyImGuiNodeGraphEditor* editor)
+{
+  editor->events().onInspect.connect([editor](nged::InspectorView* view, nged::GraphItem** items, size_t count) {
+    bool  handled  = false;
+    nged::Node* solyNode = nullptr;
+    for (size_t i = 0; i < count; ++i) {
+        if (auto* node = items[i]->asNode()) {
+        if (solyNode) {
+            solyNode = nullptr;
+            break;
+        } else {
+            solyNode = node;
+        }
+        }
+    }
+    if (auto* node = solyNode) {
+        auto* pynode = static_cast<PyNode*>(node);
+        bool inputModified = false;
+        ParmFonts fonts = {
+        nged::ImGuiResource::instance().sansSerifFont,
+        nged::ImGuiResource::instance().monoFont
+        };
+
+        if (!pynode->parmInspector.empty())
+        inputModified = pynode->parmInspector.inspect(nullptr, &fonts);
+
+        if (inputModified) {
+        editor->onParmModified(pynode, pynode->parmInspector.dirtyEntries());
+        }
+
+        if (pynode->parmInspector.doneEditing()) {
+        view->graph()->docRoot()->history().commit("edit parm");
+        }
+    
+        handled = true;
+    }
+
+    if (editor->pyOnInspectCallback && count != 0) {
+        try {
+        py::gil_scoped_acquire gil;
+        py::tuple pyitems(count);
+        for (size_t i=0; i<count; ++i)
+            pyitems[i] = items[i];
+        editor->pyOnInspectCallback(view, pyitems);
+        } catch (std::exception const& e) {
+        msghub::errorf("failed to call onInspect callback: {}", e.what());
+        }
+    }
+
+    if (ImGui::IsWindowFocused() && ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+        nged::NetworkView* netviewToFocus = nullptr;
+        if (auto lv = view->linkedView()) {
+        if (auto* netview = dynamic_cast<nged::NetworkView*>(lv.get()))
+            netviewToFocus = netview;
+        }
+        if (!netviewToFocus && count > 0) {
+        for (auto v : view->editor()->views()) {
+            if (auto* netview = dynamic_cast<nged::NetworkView*>(v.get())) {
+            if (!netviewToFocus)
+                netviewToFocus = netview;
+            else if (netview->graph().get() == items[0]->parent())
+                netviewToFocus = netview;
+            }
+        }
+        }
+        if (netviewToFocus) {
+        if (auto* imguiWindow = dynamic_cast<nged::ImGuiNamedWindow*>(netviewToFocus)) {
+            msghub::infof("focusing window {}", imguiWindow->titleWithId());
+            ImGui::SetWindowFocus(imguiWindow->titleWithId().c_str());
+        }
+        }
+    }
+  });
+
+  editor->events().requestAddItem.connect([editor](nged::Graph* graph, nged::GraphItem* item, nged::GraphItem** replacement) -> bool {
+    if (editor->pyBeforeItemAddedCallback) {
+        try {
+        py::gil_scoped_acquire gil;
+        auto ret = editor->pyBeforeItemAddedCallback(graph, item);
+        if (py::isinstance<py::bool_>(ret)) {
+            *replacement = nullptr;
+            return ret.cast<bool>(); 
+        } else if (py::isinstance(ret, OurPyTypes::instance().GraphItemType)) {
+            *replacement = ret.cast<nged::GraphItem*>();
+            return true;
+        } else if (py::isinstance<py::tuple>(ret)) {
+            auto tp = ret.cast<py::tuple>();
+            if (tp.size() != 2)
+            throw std::range_error("beforeItemAdded() should return tuple(accept, replacement)");
+            bool accept = tp[0].cast<bool>();
+            nged::GraphItem* repl = tp[1].cast<nged::GraphItem*>();
+            *replacement = repl;
+            return accept;
+        }
+        } catch (std::exception const& e) {
+        msghub::errorf("error calling beforeItemAdded: {}", e.what());
+        }
+    }
+    return true;
+  });
+
+  editor->events().onItemAdded.connect([editor](nged::Graph* graph, nged::GraphItem* item) {
+    if (editor->pyAfterItemAddedCallback) {
+        try {
+        py::gil_scoped_acquire gil;
+        editor->pyAfterItemAddedCallback(graph, item);
+        } catch (std::exception const& e) {
+        msghub::errorf("error calling afterItemAdded: {}", e.what());
+        }
+    }
+  });
+
+  editor->events().requestRemoveItem.connect([editor](nged::Graph* graph, nged::GraphItem* item) -> bool {
+    if (editor->pyBeforeItemRemovedCallback) {
+        try {
+        py::gil_scoped_acquire gil;
+        return pybind11::cast<bool>(editor->pyBeforeItemRemovedCallback(graph, item));
+        } catch (std::exception const& e) {
+        msghub::errorf("error calling beforeItemRemoved: {}", e.what());
+        }
+    }
+    return true;
+  });
+
+  editor->events().requestRenameNode.connect([editor](nged::Graph* graph, nged::Node* node) -> bool {
+    if (editor->pyBeforeNodeRenamedCallback) {
+        try {
+        py::gil_scoped_acquire gil;
+        return pybind11::cast<bool>(editor->pyBeforeNodeRenamedCallback(graph, node));
+        } catch (std::exception const& e) {
+        msghub::errorf("error calling beforeNodeRenamed: {}", e.what());
+        }
+    }
+    return true;
+  });
+
+  editor->events().onNodeRenamed.connect([editor](nged::Graph* graph, nged::Node* node) {
+    if (editor->pyAfterNodeRenamedCallback) {
+        try {
+        py::gil_scoped_acquire gil;
+        editor->pyAfterNodeRenamedCallback(graph, node);
+        } catch (std::exception const& e) {
+        msghub::errorf("error calling afterNodeRenamed: {}", e.what());
+        }
+    }
+  });
+
+  editor->events().beforeViewUpdate.connect([editor](nged::GraphView* view) {
+    if (editor->pyBeforeViewUpdateCallback) {
+        try {
+        py::gil_scoped_acquire gil;
+        editor->pyBeforeViewUpdateCallback(view);
+        } catch (std::exception const& e) {
+        msghub::errorf("error calling beforeViewUpdate: {}", e.what());
+        }
+    }
+  });
+
+  editor->events().afterViewUpdate.connect([editor](nged::GraphView* view) {
+    if (editor->pyAfterViewUpdateCallback) {
+        try {
+        py::gil_scoped_acquire gil;
+        editor->pyAfterViewUpdateCallback(view);
+        } catch (std::exception const& e) {
+        msghub::errorf("error calling afterViewUpdate: {}", e.what());
+        }
+    }
+  });
+
+  editor->events().beforeViewDraw.connect([editor](nged::GraphView* view) {
+    if (editor->pyBeforeViewDrawCallback) {
+        try {
+        py::gil_scoped_acquire gil;
+        editor->pyBeforeViewDrawCallback(view);
+        } catch (std::exception const& e) {
+        msghub::errorf("failed calling beforeViewDraw: {}", e.what());
+        }
+    }
+  });
+
+  editor->events().afterViewDraw.connect([editor](nged::GraphView* view) {
+    if (editor->pyAfterViewDrawCallback) {
+        try {
+        py::gil_scoped_acquire gil;
+        editor->pyAfterViewDrawCallback(view);
+        } catch (std::exception const& e) {
+        msghub::errorf("error calling afterViewDraw: {}", e.what());
+        }
+    }
+  });
+
+  editor->events().onItemClicked.connect([editor](nged::NetworkView* view, nged::GraphItem* item, int button) {
+    if (editor->pyOnItemClickedCallback) {
+        try {
+        py::gil_scoped_acquire gil;
+        editor->pyOnItemClickedCallback(view, item, button);
+        } catch (std::exception const& e) {
+        msghub::errorf("error calling onItemClicked: {}", e.what());
+        }
+    }
+  });
+
+  editor->events().onItemDoubleClicked.connect([editor](nged::NetworkView* view, nged::GraphItem* item, int button) {
+    if (editor->pyOnItemDoubleClickedCallback) {
+        try {
+        py::gil_scoped_acquire gil;
+        editor->pyOnItemDoubleClickedCallback(view, item, button);
+        } catch (std::exception const& e) {
+        msghub::errorf("error calling onItemDoubleClicked: {}", e.what());
+        }
+    }
+  });
+
+  editor->events().onItemHovered.connect([editor](nged::NetworkView* view, nged::GraphItem* item) {
+    if (editor->pyOnItemHoveredCallback) {
+        try {
+        py::gil_scoped_acquire gil;
+        editor->pyOnItemHoveredCallback(view, item);
+        } catch (std::exception const& e) {
+        msghub::errorf("error calling onItemHovered: {}", e.what());
+        }
+    }
+  });
+
+  editor->events().onSelectionChanged.connect([editor](nged::NetworkView* view) {
+    if (editor->pyOnSelectionChangedCallback) {
+        try {
+        py::gil_scoped_acquire gil;
+        editor->pyOnSelectionChangedCallback(view);
+        } catch (std::exception const& e) {
+        msghub::errorf("error calling onSelectionChanged: {}", e.what());
+        }
+    }
+  });
+
+  editor->events().requestLinkSet.connect([editor](nged::Graph* graph, nged::InputConnection src, nged::OutputConnection dst) -> bool {
+    if (editor->pyBeforeLinkSetCallback) {
+        try {
+        py::gil_scoped_acquire gil;
+        return pybind11::cast<bool>(editor->pyBeforeLinkSetCallback(graph, src.sourceItem, src.sourcePort, dst.destItem, dst.destPort));
+        } catch (std::exception const& e) {
+        msghub::errorf("error calling beforeLinkSet: {}", e.what());
+        }
+    }
+    return true;
+  });
+
+  editor->events().onLinkSet.connect([editor](nged::Link* link) {
+    if (editor->pyOnLinkSetCallback) {
+        try {
+        py::gil_scoped_acquire gil;
+        editor->pyOnLinkSetCallback(link);
+        } catch (std::exception const& e) {
+        msghub::errorf("error calling onLinkSet: {}", e.what());
+        }
+    }
+  });
+
+  editor->events().onLinkRemoved.connect([editor](nged::Link* link) {
+    if (editor->pyOnLinkRemovedCallback) {
+        try {
+        py::gil_scoped_acquire gil;
+        editor->pyOnLinkRemovedCallback(link);
+        } catch (std::exception const& e) {
+        msghub::errorf("error calling onLinkRemoved: {}", e.what());
+        }
+    }
+  });
+
+  editor->events().afterPaste.connect([editor](nged::Graph* graph, nged::GraphItem** items, size_t count) {
+    if (editor->pyAfterPasteCallback) {
+        try {
+        py::gil_scoped_acquire gil;
+        py::list newitems;
+        for(size_t i=0; i<count; ++i)
+            newitems.append(items[i]);
+        editor->pyAfterPasteCallback(graph, newitems);
+        } catch (std::exception const& e) {
+        msghub::errorf("error calling afterPaste: {}", e.what());
+        }
+    }
+  });
+
+  editor->events().onViewRemoved.connect([editor](nged::GraphView* view) {
+      // Logic from PyResponser::afterViewRemoved
+      auto pyview = py::detail::get_object_handle(view, py::detail::get_type_info(typeid(PyGraphView)));
+      if (pyview)
+      {
+        editor->pyViews.erase(py::reinterpret_borrow<py::object>(pyview));
+      }
+  });
+}
 std::shared_ptr<PyImGuiNodeGraphEditor> createEditor(py::object docFactory, py::object nodeFactory, py::object itemFactory)
+
 {
   static ImGuiNodeGraphEditorInitializer initOnce;
   auto editor = std::make_shared<PyImGuiNodeGraphEditor>(docFactory, nodeFactory, itemFactory);
 
   editor->setViewFactory(std::make_shared<PyViewFactory>());
   editor->initCommands();
-  editor->setResponser(std::make_shared<PyResponser>());
+  initPyInteractions(editor.get());
 
   return editor;
 }
 //}}}
 
-// Responser {{{
-void PyResponser::onInspect(nged::InspectorView* view, nged::GraphItem** items, size_t count)
-{
-  bool  handled  = false;
-  nged::Node* solyNode = nullptr;
-  for (size_t i = 0; i < count; ++i) {
-    if (auto* node = items[i]->asNode()) {
-      if (solyNode) {
-        solyNode = nullptr;
-        break;
-      } else {
-        solyNode = node;
-      }
-    }
-  }
-  if (auto* node = solyNode) {
-    auto* pynode = static_cast<PyNode*>(node);
-    bool inputModified = false;
-    ParmFonts fonts = {
-      nged::ImGuiResource::instance().sansSerifFont,
-      nged::ImGuiResource::instance().monoFont
-    };
-
-    if (!pynode->parmInspector.empty())
-      inputModified = pynode->parmInspector.inspect(nullptr, &fonts);
-
-    if (inputModified) {
-      static_cast<PyImGuiNodeGraphEditor*>(view->editor())->onParmModified(pynode, pynode->parmInspector.dirtyEntries());
-    }
-
-    if (pynode->parmInspector.doneEditing()) {
-      view->graph()->docRoot()->history().commit("edit parm");
-    }
- 
-    handled = true;
-  }
-
-  if (!handled) {
-    DefaultImGuiResponser::onInspect(view, items, count);
-  }
-
-  if (pyOnInspectCallback && count != 0) {
-    try {
-      py::gil_scoped_acquire gil;
-      py::tuple pyitems(count);
-      for (size_t i=0; i<count; ++i)
-        pyitems[i] = items[i];
-      pyOnInspectCallback(view, pyitems);
-    } catch (std::exception const& e) {
-      msghub::errorf("failed to call onInspect callback: {}", e.what());
-    }
-  }
-
-  if (ImGui::IsWindowFocused() && ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-    nged::NetworkView* netviewToFocus = nullptr;
-    if (auto lv = view->linkedView()) {
-      if (auto* netview = dynamic_cast<nged::NetworkView*>(lv.get()))
-        netviewToFocus = netview;
-    }
-    if (!netviewToFocus && count > 0) {
-      for (auto v : view->editor()->views()) {
-        if (auto* netview = dynamic_cast<nged::NetworkView*>(v.get())) {
-          if (!netviewToFocus)
-            netviewToFocus = netview;
-          else if (netview->graph().get() == items[0]->parent())
-            netviewToFocus = netview;
-        }
-      }
-    }
-    if (netviewToFocus) {
-      if (auto* imguiWindow = dynamic_cast<nged::ImGuiNamedWindow*>(netviewToFocus)) {
-        msghub::infof("focusing window {}", imguiWindow->titleWithId());
-        ImGui::SetWindowFocus(imguiWindow->titleWithId().c_str());
-      }
-    }
-  }
-}
-
-bool PyResponser::beforeItemAdded(nged::Graph* graph, nged::GraphItem* item, nged::GraphItem** replacement)
-{
-  if (pyBeforeItemAddedCallback) {
-    try {
-      py::gil_scoped_acquire gil;
-      auto ret = pyBeforeItemAddedCallback(graph, item);
-      if (py::isinstance<py::bool_>(ret)) {
-        *replacement = nullptr;
-        return ret.cast<bool>(); 
-      } else if (py::isinstance(ret, OurPyTypes::instance().GraphItemType)) {
-        *replacement = ret.cast<nged::GraphItem*>();
-        return true;
-      } else if (py::isinstance<py::tuple>(ret)) {
-        auto tp = ret.cast<py::tuple>();
-        if (tp.size() != 2)
-          throw std::range_error("beforeItemAdded() should return tuple(accept, replacement)");
-        bool accept = tp[0].cast<bool>();
-        nged::GraphItem* repl = tp[1].cast<nged::GraphItem*>();
-        *replacement = repl;
-        return accept;
-      }
-    } catch (std::exception const& e) {
-      msghub::errorf("error calling beforeItemAdded: {}", e.what());
-    }
-  }
-  return Base::beforeItemAdded(graph, item, replacement);
-}
-
-void PyResponser::afterItemAdded(nged::Graph* graph, nged::GraphItem* item)
-{
-  if (pyAfterItemAddedCallback) {
-    try {
-      py::gil_scoped_acquire gil;
-      pyAfterItemAddedCallback(graph, item);
-      return;
-    } catch (std::exception const& e) {
-      msghub::errorf("error calling afterItemAdded: {}", e.what());
-    }
-  }
-  Base::afterItemAdded(graph, item);
-}
-
-bool PyResponser::beforeItemRemoved(nged::Graph* graph, nged::GraphItem* item)
-{
-  if (pyBeforeItemRemovedCallback) {
-    try {
-      py::gil_scoped_acquire gil;
-      return pybind11::cast<bool>(pyBeforeItemRemovedCallback(graph, item));
-    } catch (std::exception const& e) {
-      msghub::errorf("error calling beforeItemRemoved: {}", e.what());
-    }
-  }
-  return Base::beforeItemRemoved(graph, item);
-}
-
-bool PyResponser::beforeNodeRenamed(nged::Graph* graph, nged::Node* node)
-{
-  if (pyBeforeNodeRenamedCallback) {
-    try {
-      py::gil_scoped_acquire gil;
-      return pybind11::cast<bool>(pyBeforeNodeRenamedCallback(graph, node));
-    } catch (std::exception const& e) {
-      msghub::errorf("error calling beforeNodeRenamed: {}", e.what());
-    }
-  }
-  return Base::beforeNodeRenamed(graph, node);
-}
-
-void PyResponser::afterNodeRenamed(nged::Graph* graph, nged::Node* node)
-{
-  if (pyAfterNodeRenamedCallback) {
-    try {
-      py::gil_scoped_acquire gil;
-      pyAfterNodeRenamedCallback(graph, node);
-      return;
-    } catch (std::exception const& e) {
-      msghub::errorf("error calling afterNodeRenamed: {}", e.what());
-    }
-  }
-  Base::afterNodeRenamed(graph, node);
-}
-
-void PyResponser::beforeViewUpdate(nged::GraphView* view)
-{
-  if (pyBeforeViewUpdateCallback) {
-    try {
-      py::gil_scoped_acquire gil;
-      pyBeforeViewUpdateCallback(view);
-      return;
-    } catch (std::exception const& e) {
-      msghub::errorf("error calling beforeViewUpdate: {}", e.what());
-    }
-  }
-  Base::beforeViewUpdate(view);
-}
-
-void PyResponser::afterViewUpdate(nged::GraphView* view)
-{
-  if (pyAfterViewUpdateCallback) {
-    try {
-      py::gil_scoped_acquire gil;
-      pyAfterViewUpdateCallback(view);
-      return;
-    } catch (std::exception const& e) {
-      msghub::errorf("error calling afterViewUpdate: {}", e.what());
-    }
-  }
-  Base::afterViewUpdate(view);
-}
-
-void PyResponser::beforeViewDraw(nged::GraphView* view)
-{
-  if (pyBeforeViewDrawCallback) {
-    try {
-      py::gil_scoped_acquire gil;
-      pyBeforeViewDrawCallback(view);
-      return;
-    } catch (std::exception const& e) {
-      msghub::errorf("failed calling beforeViewDraw: {}", e.what());
-    }
-  }
-  Base::beforeViewDraw(view);
-}
-
-void PyResponser::afterViewDraw(nged::GraphView* view)
-{
-  if (pyAfterViewDrawCallback) {
-    try {
-      py::gil_scoped_acquire gil;
-      pyAfterViewDrawCallback(view);
-      return;
-    } catch (std::exception const& e) {
-      msghub::errorf("error calling afterViewDraw: {}", e.what());
-    }
-  }
-  Base::afterViewDraw(view);
-}
-
-void PyResponser::onItemClicked(nged::NetworkView* view, nged::GraphItem* item, int button)
-{
-  if (pyOnItemClickedCallback) {
-    try {
-      py::gil_scoped_acquire gil;
-      pyOnItemClickedCallback(view, item, button);
-      return;
-    } catch (std::exception const& e) {
-      msghub::errorf("error calling onItemClicked: {}", e.what());
-    }
-  }
-  Base::onItemClicked(view, item, button);
-}
-
-void PyResponser::onItemDoubleClicked(nged::NetworkView* view, nged::GraphItem* item, int button)
-{
-  if (pyOnItemDoubleClickedCallback) {
-    try {
-      py::gil_scoped_acquire gil;
-      pyOnItemDoubleClickedCallback(view, item, button);
-      return;
-    } catch (std::exception const& e) {
-      msghub::errorf("error calling onItemDoubleClicked: {}", e.what());
-    }
-  }
-  Base::onItemDoubleClicked(view, item, button);
-}
-
-void PyResponser::onItemHovered(nged::NetworkView* view, nged::GraphItem* item)
-{
-  if (pyOnItemHoveredCallback) {
-    try {
-      py::gil_scoped_acquire gil;
-      pyOnItemHoveredCallback(view, item);
-      return;
-    } catch (std::exception const& e) {
-      msghub::errorf("error calling onItemHovered: {}", e.what());
-    }
-  }
-  Base::onItemHovered(view, item);
-}
-
-void PyResponser::onSelectionChanged(nged::NetworkView* view)
-{
-  if (pyOnSelectionChangedCallback) {
-    try {
-      py::gil_scoped_acquire gil;
-      pyOnSelectionChangedCallback(view);
-      return;
-    } catch (std::exception const& e) {
-      msghub::errorf("error calling onSelectionChanged: {}", e.what());
-    }
-  }
-  Base::onSelectionChanged(view);
-}
-
-bool PyResponser::beforeLinkSet(nged::Graph* graph, nged::InputConnection src, nged::OutputConnection dst)
-{
-  if (pyBeforeLinkSetCallback) {
-    try {
-      py::gil_scoped_acquire gil;
-      return pybind11::cast<bool>(pyBeforeLinkSetCallback(graph, src.sourceItem, src.sourcePort, dst.destItem, dst.destPort));
-    } catch (std::exception const& e) {
-      msghub::errorf("error calling beforeLinkSet: {}", e.what());
-    }
-  }
-  return Base::beforeLinkSet(graph, src, dst);
-}
-
-void PyResponser::onLinkSet(nged::Link* link)
-{
-  if (pyOnLinkSetCallback) {
-    try {
-      py::gil_scoped_acquire gil;
-      pyOnLinkSetCallback(link);
-      return;
-    } catch (std::exception const& e) {
-      msghub::errorf("error calling onLinkSet: {}", e.what());
-    }
-  }
-  Base::onLinkSet(link);
-}
-
-void PyResponser::onLinkRemoved(nged::Link* link)
-{
-  if (pyOnLinkRemovedCallback) {
-    try {
-      py::gil_scoped_acquire gil;
-      pyOnLinkRemovedCallback(link);
-      return;
-    } catch (std::exception const& e) {
-      msghub::errorf("error calling onLinkRemoved: {}", e.what());
-    }
-  }
-  Base::onLinkRemoved(link);
-}
-
-void PyResponser::afterPaste(nged::Graph* graph, nged::GraphItem** items, size_t count)
-{
-  if (pyAfterPasteCallback) {
-    try {
-      py::gil_scoped_acquire gil;
-      py::list newitems;
-      for(size_t i=0; i<count; ++i)
-        newitems.append(items[i]);
-      pyAfterPasteCallback(graph, newitems);
-      return;
-    } catch (std::exception const& e) {
-      msghub::errorf("error calling afterPaste: {}", e.what());
-    }
-  }
-  Base::afterPaste(graph, items, count);
-}
-
-void PyResponser::afterViewRemoved(nged::GraphView* view)
-{
-  auto* editor = view->editor();
-  auto pyview = py::detail::get_object_handle(view, py::detail::get_type_info(typeid(PyGraphView)));
-  if (pyview)
-  {
-    assert(dynamic_cast<PyImGuiNodeGraphEditor*>(editor));
-    auto* pyeditor = static_cast<PyImGuiNodeGraphEditor*>(editor);
-    pyeditor->pyViews.erase(py::reinterpret_borrow<py::object>(pyview));
-  }
-}
-// }}}
 
 // ViewFactory {{{
 PyViewFactory::PyViewFactory()
@@ -1594,58 +1545,58 @@ PYBIND11_MODULE(ngpy, m) {
     }, py::arg("name"), py::arg("factory"))
     .def_property("defaultLayoutDesc", &PyImGuiNodeGraphEditor::defaultLayoutDesc, &PyImGuiNodeGraphEditor::setDefaultLayoutDesc)
     .def("setOnInspectCallback", [](nged::EditorPtr editor, pybind11::function callback){
-      static_cast<PyResponser*>(editor->responser())->pyOnInspectCallback = callback;
+      static_cast<PyImGuiNodeGraphEditor*>(editor.get())->pyOnInspectCallback = callback;
     })
     .def("setBeforeItemAddedCallback", [](nged::EditorPtr editor, pybind11::function callback){
-      static_cast<PyResponser*>(editor->responser())->pyBeforeItemAddedCallback = callback;
+      static_cast<PyImGuiNodeGraphEditor*>(editor.get())->pyBeforeItemAddedCallback = callback;
     })
     .def("setAfterItemAddedCallback", [](nged::EditorPtr editor, pybind11::function callback){
-      static_cast<PyResponser*>(editor->responser())->pyAfterItemAddedCallback = callback;
+      static_cast<PyImGuiNodeGraphEditor*>(editor.get())->pyAfterItemAddedCallback = callback;
     })
     .def("setBeforeItemRemovedCallback", [](nged::EditorPtr editor, pybind11::function callback){
-      static_cast<PyResponser*>(editor->responser())->pyBeforeItemRemovedCallback = callback;
+      static_cast<PyImGuiNodeGraphEditor*>(editor.get())->pyBeforeItemRemovedCallback = callback;
     })
     .def("setBeforeNodeRenamedCallback", [](nged::EditorPtr editor, pybind11::function callback){
-      static_cast<PyResponser*>(editor->responser())->pyBeforeNodeRenamedCallback = callback;
+      static_cast<PyImGuiNodeGraphEditor*>(editor.get())->pyBeforeNodeRenamedCallback = callback;
     })
     .def("setAfterNodeRenamedCallback", [](nged::EditorPtr editor, pybind11::function callback){
-      static_cast<PyResponser*>(editor->responser())->pyAfterNodeRenamedCallback = callback;
+      static_cast<PyImGuiNodeGraphEditor*>(editor.get())->pyAfterNodeRenamedCallback = callback;
     })
     .def("setBeforeViewUpdateCallback", [](nged::EditorPtr editor, pybind11::function callback){
-      static_cast<PyResponser*>(editor->responser())->pyBeforeViewUpdateCallback = callback;
+      static_cast<PyImGuiNodeGraphEditor*>(editor.get())->pyBeforeViewUpdateCallback = callback;
     })
     .def("setAfterViewUpdateCallback", [](nged::EditorPtr editor, pybind11::function callback){
-      static_cast<PyResponser*>(editor->responser())->pyAfterViewUpdateCallback = callback;
+      static_cast<PyImGuiNodeGraphEditor*>(editor.get())->pyAfterViewUpdateCallback = callback;
     })
     .def("setBeforeViewDrawCallback", [](nged::EditorPtr editor, pybind11::function callback){
-      static_cast<PyResponser*>(editor->responser())->pyBeforeViewDrawCallback = callback;
+      static_cast<PyImGuiNodeGraphEditor*>(editor.get())->pyBeforeViewDrawCallback = callback;
     })
     .def("setAfterViewDrawCallback", [](nged::EditorPtr editor, pybind11::function callback){
-      static_cast<PyResponser*>(editor->responser())->pyAfterViewDrawCallback = callback;
+      static_cast<PyImGuiNodeGraphEditor*>(editor.get())->pyAfterViewDrawCallback = callback;
     })
     .def("setOnItemClickedCallback", [](nged::EditorPtr editor, pybind11::function callback){
-      static_cast<PyResponser*>(editor->responser())->pyOnItemClickedCallback = callback;
+      static_cast<PyImGuiNodeGraphEditor*>(editor.get())->pyOnItemClickedCallback = callback;
     })
     .def("setOnItemDoubleClickedCallback", [](nged::EditorPtr editor, pybind11::function callback){
-      static_cast<PyResponser*>(editor->responser())->pyOnItemDoubleClickedCallback = callback;
+      static_cast<PyImGuiNodeGraphEditor*>(editor.get())->pyOnItemDoubleClickedCallback = callback;
     })
     .def("setOnItemHoveredCallback", [](nged::EditorPtr editor, pybind11::function callback){
-      static_cast<PyResponser*>(editor->responser())->pyOnItemHoveredCallback = callback;
+      static_cast<PyImGuiNodeGraphEditor*>(editor.get())->pyOnItemHoveredCallback = callback;
     })
     .def("setOnSelectionChangedCallback", [](nged::EditorPtr editor, pybind11::function callback){
-      static_cast<PyResponser*>(editor->responser())->pyOnSelectionChangedCallback = callback;
+      static_cast<PyImGuiNodeGraphEditor*>(editor.get())->pyOnSelectionChangedCallback = callback;
     })
     .def("setBeforeLinkSetCallback", [](nged::EditorPtr editor, pybind11::function callback){
-      static_cast<PyResponser*>(editor->responser())->pyBeforeLinkSetCallback = callback;
+      static_cast<PyImGuiNodeGraphEditor*>(editor.get())->pyBeforeLinkSetCallback = callback;
     })
     .def("setOnLinkSetCallback", [](nged::EditorPtr editor, pybind11::function callback) {
-      static_cast<PyResponser*>(editor->responser())->pyOnLinkSetCallback = callback;
+      static_cast<PyImGuiNodeGraphEditor*>(editor.get())->pyOnLinkSetCallback = callback;
     })
     .def("setOnLinkRemovedCallback", [](nged::EditorPtr editor, pybind11::function callback) {
-      static_cast<PyResponser*>(editor->responser())->pyOnLinkRemovedCallback = callback;
+      static_cast<PyImGuiNodeGraphEditor*>(editor.get())->pyOnLinkRemovedCallback = callback;
     })
     .def("setAfterPasteCallback", [](nged::EditorPtr editor, pybind11::function callback) {
-      static_cast<PyResponser*>(editor->responser())->pyAfterPasteCallback = callback;
+      static_cast<PyImGuiNodeGraphEditor*>(editor.get())->pyAfterPasteCallback = callback;
     })
     .def("setParmModifiedCallback", [](PyImGuiNodeGraphEditor* editor, pybind11::function callback) {
       editor->pyParmModifiedCallback = callback;

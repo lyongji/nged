@@ -19,7 +19,6 @@
 
 - [Interaction & Commands](interaction/CommandManager.md)
     - [CommandManager](interaction/CommandManager.md)
-    - [NodeGraphEditResponser](interaction/NodeGraphEditResponser.md)
 
 - [Graphics & UI](graphics/Canvas.md)
     - [Canvas](graphics/Canvas.md)

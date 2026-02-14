@@ -448,42 +448,6 @@ public:
 };
 // }}}
 
-// Responser {{{
-class PyResponser : public nged::DefaultImGuiResponser
-{
-public:
-  using Base = nged::DefaultImGuiResponser;
-  pybind11::function pyOnInspectCallback, pyBeforeItemAddedCallback, pyAfterItemAddedCallback,
-    pyBeforeItemRemovedCallback, pyBeforeNodeRenamedCallback, pyAfterNodeRenamedCallback,
-    pyBeforeViewUpdateCallback, pyAfterViewUpdateCallback, pyBeforeViewDrawCallback,
-    pyAfterViewDrawCallback, pyOnItemClickedCallback, pyOnItemDoubleClickedCallback,
-    pyOnItemHoveredCallback, pyOnSelectionChangedCallback, pyBeforeLinkSetCallback,
-    pyOnLinkSetCallback, pyOnLinkRemovedCallback, pyAfterPasteCallback;
-
-  void onInspect(nged::InspectorView* view, nged::GraphItem** items, size_t count) override;
-  bool beforeItemAdded(nged::Graph* graph, nged::GraphItem* item, nged::GraphItem** replacement)
-    override;
-  void afterItemAdded(nged::Graph* graph, nged::GraphItem* item) override;
-  bool beforeItemRemoved(nged::Graph* graph, nged::GraphItem* item) override;
-  bool beforeNodeRenamed(nged::Graph* graph, nged::Node* node) override;
-  void afterNodeRenamed(nged::Graph* graph, nged::Node* node) override;
-  void beforeViewUpdate(nged::GraphView* view) override;
-  void afterViewUpdate(nged::GraphView* view) override;
-  void beforeViewDraw(nged::GraphView* view) override;
-  void afterViewDraw(nged::GraphView* view) override;
-  void afterViewRemoved(nged::GraphView* view) override;
-  void onItemClicked(nged::NetworkView* view, nged::GraphItem* item, int button) override;
-  void onItemDoubleClicked(nged::NetworkView* view, nged::GraphItem* item, int button) override;
-  void onItemHovered(nged::NetworkView* view, nged::GraphItem* item) override;
-  void onSelectionChanged(nged::NetworkView* view) override;
-  bool beforeLinkSet(nged::Graph* graph, nged::InputConnection src, nged::OutputConnection dst)
-    override;
-  void onLinkSet(nged::Link* link) override;
-  void onLinkRemoved(nged::Link* link) override;
-  void afterPaste(nged::Graph* graph, nged::GraphItem** items, size_t count) override;
-};
-// }}}
-
 // GraphView {{{
 class PyGraphView : public nged::ImGuiGraphView<PyGraphView, nged::GraphView>
 {
@@ -571,6 +535,7 @@ public:
   pybind11::object pyNodeFactory;
   pybind11::object pyItemFactory;
   pybind11::object pyParmModifiedCallback;
+  pybind11::function pyOnInspectCallback, pyBeforeItemAddedCallback, pyAfterItemAddedCallback, pyBeforeItemRemovedCallback, pyBeforeNodeRenamedCallback, pyAfterNodeRenamedCallback, pyBeforeViewUpdateCallback, pyAfterViewUpdateCallback, pyBeforeViewDrawCallback, pyAfterViewDrawCallback, pyOnItemClickedCallback, pyOnItemDoubleClickedCallback, pyOnItemHoveredCallback, pyOnSelectionChangedCallback, pyBeforeLinkSetCallback, pyOnLinkSetCallback, pyOnLinkRemovedCallback, pyAfterPasteCallback;
   std::unordered_set<pybind11::object, PyPtrHash<pybind11::object>, PyPtrEqual<pybind11::object>>
     pyDocs;
   std::unordered_set<pybind11::object, PyPtrHash<pybind11::object>, PyPtrEqual<pybind11::object>>

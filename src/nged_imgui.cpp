@@ -1113,15 +1113,13 @@ public:
       }
     }
     if (inspectingItemRawPtrs.size() > 0) {
-      if (auto responser = editor()->responser()) {
-        bool disabled = readonly();
-        if (disabled)
-          ImGui::BeginDisabled();
-        // okay, seems quite easy to inject ... but no sane man would do that right?
-        responser->onInspect(this, inspectingItemRawPtrs.data(), inspectingItemRawPtrs.size());
-        if (disabled)
-          ImGui::EndDisabled();
-      }
+      bool disabled = readonly();
+      if (disabled)
+        ImGui::BeginDisabled();
+      // okay, seems quite easy to inject ... but no sane man would do that right?
+      editor()->events().onInspect.emit(this, inspectingItemRawPtrs.data(), inspectingItemRawPtrs.size());
+      if (disabled)
+        ImGui::EndDisabled();
     }
   }
 };
@@ -1322,17 +1320,6 @@ ViewFactoryPtr defaultViewFactory()
 }
 // }}} Default Views
 
-// Default Responser {{{
-void DefaultImGuiResponser::onInspect(InspectorView* view, GraphItem** items, size_t count)
-{
-  if (count == 1) {
-    if (auto comment = dynamic_cast<ImGuiCommentBox*>(*items)) {
-      comment->onInspect(view);
-    }
-  }
-}
-// }}} Default Responser
-
 // ImGuiNodeGraphEditor {{{
 void ImGuiNodeGraphEditor::initCommands()
 {
@@ -1344,6 +1331,14 @@ void ImGuiNodeGraphEditor::initCommands()
     "Help ...",
     [](GraphView* view, StringView args){ view->editor()->addView(nullptr, "help"); },
     Shortcut{0xF1}, "*"});
+
+  events().onInspect.connect([](InspectorView* view, GraphItem** items, size_t count) {
+    if (count == 1) {
+      if (auto comment = dynamic_cast<ImGuiCommentBox*>(*items)) {
+        comment->onInspect(view);
+      }
+    }
+  });
 }
 
 void ImGuiNodeGraphEditor::draw()
@@ -1354,13 +1349,11 @@ void ImGuiNodeGraphEditor::draw()
   runOnceBeforeDraw_.clear();
 
   for (auto view : views()) {
-    if (responser())
-      responser()->beforeViewDraw(view.get());
+    events().beforeViewDraw.emit(view.get());
 
     view->draw();
 
-    if (responser())
-      responser()->afterViewDraw(view.get());
+    events().afterViewDraw.emit(view.get());
   }
 }
 
@@ -1844,34 +1837,33 @@ bool HandleView::update(NetworkView* view)
 
   if (view->hoveringItem() != ID_None) {
     auto item = view->graph()->get(view->hoveringItem());
-    if (auto* resp = view->editor()->responser()) {
-      int button = -1;
-      bool click = false;
-      bool dbclick = false;
-      if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-        button = 0;
-      else if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
-        button = 1;
-      else if (ImGui::IsMouseClicked(ImGuiMouseButton_Middle))
-        button = 2;
-      else if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-        button = 0;
-        dbclick = true;
-      } else if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right)) {
-        button = 1;
-        dbclick = true;
-      } else if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Middle)) {
-        button = 2;
-        dbclick = true;
-      }
-      if (button>=0) {
-        if (dbclick)
-          resp->onItemDoubleClicked(view, item.get(), button);
-        else
-          resp->onItemClicked(view, item.get(), button);
-      } else {
-        resp->onItemHovered(view, item.get());
-      }
+    auto& events = view->editor()->events();
+    int button = -1;
+    bool click = false;
+    bool dbclick = false;
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+      button = 0;
+    else if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+      button = 1;
+    else if (ImGui::IsMouseClicked(ImGuiMouseButton_Middle))
+      button = 2;
+    else if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+      button = 0;
+      dbclick = true;
+    } else if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right)) {
+      button = 1;
+      dbclick = true;
+    } else if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Middle)) {
+      button = 2;
+      dbclick = true;
+    }
+    if (button>=0) {
+      if (dbclick)
+        events.onItemDoubleClicked.emit(view, item.get(), button);
+      else
+        events.onItemClicked.emit(view, item.get(), button);
+    } else {
+      events.onItemHovered.emit(view, item.get());
     }
   }
 
@@ -2385,7 +2377,6 @@ bool LinkState::update(NetworkView* view)
   }
 
   if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
-    auto* resp      = view->editor()->responser();
     bool  shiftDown = ImGui::GetIO().KeyMods == ImGuiMod_Shift;
     if (srcPin_ != PIN_None && dropPin.type == NodePin::Type::In && dropPin.node != srcPin_.node) {
       auto srcNode = srcPin_.node;
@@ -2806,8 +2797,7 @@ bool CreateNodeState::update(NetworkView* view)
         !justCreated &&
         (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsMouseClicked(ImGuiMouseButton_Left))) {
         GraphItem* replacement = nullptr;
-        if (view->editor()->responser() &&
-            !view->editor()->responser()->beforeItemAdded(view->graph().get(), pendingItemToPlace_.get(), &replacement)) {
+        if (!view->editor()->events().requestAddItem.invoke(view->graph().get(), pendingItemToPlace_.get(), &replacement)) {
           auto text = 
             pendingItemToPlace_->asNode()?
               fmt::format("{} cannot be placed here",
@@ -2828,8 +2818,7 @@ bool CreateNodeState::update(NetworkView* view)
 
         auto editgroup = view->graph()->docRoot()->history().editGroup("add item");
         auto id = view->graph()->add(pendingItemToPlace_);
-        if (view->editor()->responser())
-          view->editor()->responser()->afterItemAdded(view->graph().get(), pendingItemToPlace_.get());
+        view->editor()->events().onItemAdded.emit(view->graph().get(), pendingItemToPlace_.get());
         if (pendingInputLink_.sourceItem != ID_None) {
           if (
               pendingItemToPlace_->asRouter() ||

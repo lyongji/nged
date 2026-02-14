@@ -8,61 +8,6 @@ class GraphView;
 class InspectorView;
 class NetworkView;
 
-// Responser {{{
-// NodeGraphEditResponser acts as a hook on certain edit events
-// the reason NOT to put `bool accept(GraphItem* item) const`
-// or things like that in Graph class is,
-// this hook can potentially do more than that -
-// e.g. make a graph / view read only, giving visual feedbacks
-class NodeGraphEditResponser
-{
-public:
-  virtual ~NodeGraphEditResponser() {}
-
-  // return false prevents item from being added
-  virtual bool beforeItemAdded(Graph* graph, GraphItem* item, GraphItem** replacement) { return true; }
-  virtual void afterItemAdded(Graph* graph, GraphItem* item) {}
-
-  // return false prevents item from being removed
-  virtual bool beforeItemRemoved(Graph* graph, GraphItem* item) { return true; }
-  //virtual void afterItemRemoved(Graph* graph, GraphItem* item) {}
-
-  // return false prevents node from being renamed
-  virtual bool beforeNodeRenamed(Graph* graph, Node* node) { return true; }
-  virtual void afterNodeRenamed(Graph* graph, Node* node) {}
-
-  // return false prevents view from being removed
-  virtual bool beforeViewRemoved(GraphView* view) { return true; }
-  virtual void afterViewRemoved(GraphView* view) {}
-
-  virtual void beforeViewUpdate(GraphView* view) {}
-  virtual void afterViewUpdate(GraphView* view) {}
-  virtual void beforeViewDraw(GraphView* view) {}
-  virtual void afterViewDraw(GraphView* view) {}
-
-  virtual void onItemAdded(GraphItem* item) {}
-  virtual void onItemMoved(GraphItem* item) {}
-  virtual void onItemModified(GraphItem* item) {}
-  virtual void onItemRemoved(GraphItem* item) {}
-
-  virtual void onInspect(InspectorView* view, GraphItem** items, size_t count) {}
-  virtual void afterPaste(Graph* graph, GraphItem** new_items, size_t count) {}
-
-  // button: 0:left, 1:right, 2:middle
-  virtual void onItemClicked(NetworkView* view, GraphItem* item, int button) {}
-  virtual void onItemDoubleClicked(NetworkView* view, GraphItem* item, int button) {}
-  virtual void onItemHovered(NetworkView* view, GraphItem* item) {}
-  virtual void onItemSelected(NetworkView* view, GraphItem* item) {}
-  virtual void onItemDeselected(NetworkView* view, GraphItem* item) {}
-  virtual void onSelectionChanged(NetworkView* view) {}
-
-  // return false prevents the link from being set
-  virtual bool beforeLinkSet(Graph* graph, InputConnection src, OutputConnection dst) { return true; }
-  virtual void onLinkSet(Link* link) {}
-  virtual void onLinkRemoved(Link* link) {}
-};
-using NodeGraphEditResponserPtr = std::shared_ptr<NodeGraphEditResponser>;
-// }}} Responser
 
 struct GraphEventHub
 {
@@ -626,8 +571,6 @@ protected:
         return std::make_shared<NodeGraphDoc>(nodeFactory, itemFactory);
     };
 
-  NodeGraphEditResponserPtr responser_;
-  Vector<std::function<void()>> responserDisconnectors_;
   GraphEventHub             eventHub_;
 
   void removeView(ViewPtr view);
@@ -639,7 +582,6 @@ public:
   void setItemFactory(GraphItemFactoryPtr factory) { itemFactory_ = std::move(factory); }
   void setViewFactory(ViewFactoryPtr factory) { viewFactory_ = std::move(factory); }
   void setNodeFactory(NodeFactoryPtr factory) { nodeFactory_ = factory; }
-  void setResponser(NodeGraphEditResponserPtr responser);
   GraphEventHub& events() { return eventHub_; }
 
   template <class T>
@@ -663,7 +605,6 @@ public:
   auto  viewFactory() const { return viewFactory_; }
   auto  nodeFactory()       { return nodeFactory_; }
   auto  nodeFactory() const { return nodeFactory_; }
-  auto* responser() const { return responser_.get(); }
   auto& commandManager() { return commandManager_; }
 
   void notifyGraphModified(Graph* graph);
@@ -687,7 +628,6 @@ public:
   virtual void    setClipboardText(StringView text) const = 0;
   virtual String  getClipboardText() const                = 0;
 
-  // graph manipulation respecting responser {{{
   NodePtr createNode(Graph* graph, StringView type);
   ItemID  addItem(Graph* graph, GraphItemPtr item);
   void    confirmItemPlacements(Graph* graph, HashSet<ItemID> const& items);
@@ -697,7 +637,6 @@ public:
   void    removeLink(Graph* graph, ItemID destItem, sint destPort);
   void    swapInput(Graph* graph, ItemID oldSourceItem, sint oldSourcePort, ItemID newSourceItem, sint newSourcePort, ItemID destItem, sint destPort);
   void    swapOutput(Graph* graph, ItemID sourceItem, sint sourcePort, ItemID oldDestItem, sint oldDestPort, ItemID newDestItem, sint newDestPort);
-  // }}} graph manipulation respecting responser
 };
 
 using EditorPtr = std::shared_ptr<NodeGraphEditor>;

@@ -187,8 +187,7 @@ void NetworkView::setSelectedItems(HashSet<ItemID> items)
   }
   selectedItems_.swap(items);
   editor()->boardcastViewEvent(this, "selectionChanged");
-  if (auto* resp = editor()->responser())
-    resp->onSelectionChanged(this);
+  editor()->events().onSelectionChanged.emit(this);
 }
 
 Node* NetworkView::solySelectedNode() const
@@ -502,7 +501,6 @@ bool NetworkView::pasteFrom(Json const& json)
   auto                   graphSharedPtr = graph();
   auto                   graphRawPtr    = graphSharedPtr.get();
   AABB                   bb;
-  auto                   responser = editor()->responser();
   auto                   nodeFactory = graphRawPtr->nodeFactory();
   auto                   itemFactory = graphRawPtr->docRoot()->itemFactory();
 
@@ -534,7 +532,7 @@ bool NetworkView::pasteFrom(Json const& json)
       return false;
     }
     GraphItem* replacedItem = nullptr;
-    if (responser && !responser->beforeItemAdded(graphRawPtr, newitem.get(), &replacedItem)) {
+    if (!editor()->events().requestAddItem.invoke(graphRawPtr, newitem.get(), &replacedItem)) {
       if (auto* newnode = newitem->asNode()) {
         msghub::infof("node {}({}) cannot be added", newnode->type(), newnode->name());
         graphRawPtr->docRoot()->nodeFactory()->discard(graphRawPtr, newnode);
@@ -581,12 +579,12 @@ bool NetworkView::pasteFrom(Json const& json)
     zOrder_[id] = ++highZ_;
   zoomToSelected(0.2f);
 
-  if (responser) {
+  {
     std::vector<GraphItem*> vecNewItems;
     vecNewItems.reserve(selectedItems_.size());
     for (auto id: selectedItems_)
       vecNewItems.push_back(graphRawPtr->get(id).get());
-    responser->afterPaste(graphRawPtr, vecNewItems.data(), vecNewItems.size());
+    editor()->events().afterPaste.emit(graphRawPtr, vecNewItems.data(), vecNewItems.size());
   }
 
   return true;
@@ -1565,105 +1563,6 @@ bool NodeGraphEditor::saveDocAs(DocPtr doc, StringView inputpath)
     }
   }
   return succeed;
-}
-
-void NodeGraphEditor::setResponser(NodeGraphEditResponserPtr responser)
-{
-  responser_ = responser;
-  // Clear previous connections
-  for (auto& disconnect : responserDisconnectors_)
-    disconnect();
-  responserDisconnectors_.clear();
-
-  if (!responser_) return;
-
-  std::weak_ptr<NodeGraphEditResponser> weakResp = responser_;
-
-  auto connect = [this, weakResp](auto& signal, auto callback) {
-    auto handle = signal.connect(callback);
-    responserDisconnectors_.push_back([&signal, handle] { signal.disconnect(handle); });
-  };
-
-  connect(eventHub_.requestAddItem, [weakResp](Graph* g, GraphItem* i, GraphItem** r) {
-    if (auto resp = weakResp.lock()) return resp->beforeItemAdded(g, i, r);
-    return true;
-  });
-  connect(eventHub_.onItemAdded, [weakResp](Graph* g, GraphItem* i) {
-    if (auto resp = weakResp.lock()) resp->afterItemAdded(g, i);
-  });
-  connect(eventHub_.requestRemoveItem, [weakResp](Graph* g, GraphItem* i) {
-    if (auto resp = weakResp.lock()) return resp->beforeItemRemoved(g, i);
-    return true;
-  });
-  connect(eventHub_.onItemRemoved, [weakResp](GraphItem* i) {
-    if (auto resp = weakResp.lock()) resp->onItemRemoved(i);
-  });
-  connect(eventHub_.requestRenameNode, [weakResp](Graph* g, Node* n) {
-    if (auto resp = weakResp.lock()) return resp->beforeNodeRenamed(g, n);
-    return true;
-  });
-  connect(eventHub_.onNodeRenamed, [weakResp](Graph* g, Node* n) {
-    if (auto resp = weakResp.lock()) resp->afterNodeRenamed(g, n);
-  });
-  connect(eventHub_.requestRemoveView, [weakResp](GraphView* v) {
-    if (auto resp = weakResp.lock()) return resp->beforeViewRemoved(v);
-    return true;
-  });
-  connect(eventHub_.onViewRemoved, [weakResp](GraphView* v) {
-    if (auto resp = weakResp.lock()) resp->afterViewRemoved(v);
-  });
-  connect(eventHub_.beforeViewUpdate, [weakResp](GraphView* v) {
-    if (auto resp = weakResp.lock()) resp->beforeViewUpdate(v);
-  });
-  connect(eventHub_.afterViewUpdate, [weakResp](GraphView* v) {
-    if (auto resp = weakResp.lock()) resp->afterViewUpdate(v);
-  });
-  connect(eventHub_.beforeViewDraw, [weakResp](GraphView* v) {
-    if (auto resp = weakResp.lock()) resp->beforeViewDraw(v);
-  });
-  connect(eventHub_.afterViewDraw, [weakResp](GraphView* v) {
-    if (auto resp = weakResp.lock()) resp->afterViewDraw(v);
-  });
-  connect(eventHub_.onItemMoved, [weakResp](GraphItem* i) {
-    if (auto resp = weakResp.lock()) resp->onItemMoved(i);
-  });
-  connect(eventHub_.onItemModified, [weakResp](GraphItem* i) {
-    if (auto resp = weakResp.lock()) resp->onItemModified(i);
-  });
-  connect(eventHub_.onInspect, [weakResp](InspectorView* v, GraphItem** i, size_t c) {
-    if (auto resp = weakResp.lock()) resp->onInspect(v, i, c);
-  });
-  connect(eventHub_.afterPaste, [weakResp](Graph* g, GraphItem** i, size_t c) {
-    if (auto resp = weakResp.lock()) resp->afterPaste(g, i, c);
-  });
-  connect(eventHub_.onItemClicked, [weakResp](NetworkView* v, GraphItem* i, int b) {
-    if (auto resp = weakResp.lock()) resp->onItemClicked(v, i, b);
-  });
-  connect(eventHub_.onItemDoubleClicked, [weakResp](NetworkView* v, GraphItem* i, int b) {
-    if (auto resp = weakResp.lock()) resp->onItemDoubleClicked(v, i, b);
-  });
-  connect(eventHub_.onItemHovered, [weakResp](NetworkView* v, GraphItem* i) {
-    if (auto resp = weakResp.lock()) resp->onItemHovered(v, i);
-  });
-  connect(eventHub_.onItemSelected, [weakResp](NetworkView* v, GraphItem* i) {
-    if (auto resp = weakResp.lock()) resp->onItemSelected(v, i);
-  });
-  connect(eventHub_.onItemDeselected, [weakResp](NetworkView* v, GraphItem* i) {
-    if (auto resp = weakResp.lock()) resp->onItemDeselected(v, i);
-  });
-  connect(eventHub_.onSelectionChanged, [weakResp](NetworkView* v) {
-    if (auto resp = weakResp.lock()) resp->onSelectionChanged(v);
-  });
-  connect(eventHub_.requestLinkSet, [weakResp](Graph* g, InputConnection s, OutputConnection d) {
-    if (auto resp = weakResp.lock()) return resp->beforeLinkSet(g, s, d);
-    return true;
-  });
-  connect(eventHub_.onLinkSet, [weakResp](Link* l) {
-    if (auto resp = weakResp.lock()) resp->onLinkSet(l);
-  });
-  connect(eventHub_.onLinkRemoved, [weakResp](Link* l) {
-    if (auto resp = weakResp.lock()) resp->onLinkRemoved(l);
-  });
 }
 
 void NodeGraphEditor::update(float dt)

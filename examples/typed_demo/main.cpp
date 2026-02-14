@@ -123,7 +123,6 @@ class DemoApp: public nged::App
     nged::TypeSystem::instance().setConvertable("int", "float");
 
     editor = nged::newImGuiNodeGraphEditor();
-    editor->setResponser(std::make_shared<nged::DefaultImGuiResponser>());
     editor->setItemFactory(nged::addImGuiItems(nged::defaultGraphItemFactory()));
     editor->setViewFactory(nged::defaultViewFactory());
     editor->setNodeFactory(std::make_shared<MyNodeFactory>());

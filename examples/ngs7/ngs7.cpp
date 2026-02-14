@@ -159,12 +159,7 @@ public:
   String filterFileOutput(StringView out) override;
 };
 
-class S7Responser : public nged::DefaultImGuiResponser
-{
-public:
-  void onInspect(InspectorView* view, GraphItem** items, size_t numItems) override;
-  void onItemHovered(NetworkView* view, GraphItem* item) override;
-};
+void initS7ResponserLogic(nged::NodeGraphEditor* editor);
 
 class S7Node : public nged::Node
 {
@@ -186,7 +181,7 @@ protected:
 
   Vector<Line> codeCache_;
 
-  friend void S7Responser::onInspect(InspectorView*, GraphItem**, size_t);
+  friend void s7_onInspect(InspectorView*, GraphItem**, size_t);
   friend class S7Graph;
 
 public:
@@ -641,7 +636,7 @@ String S7Doc::filterFileInput(StringView in)
   return json;
 }
 
-void S7Responser::onInspect(InspectorView* view, GraphItem** items, size_t numItems)
+void s7_onInspect(InspectorView* view, GraphItem** items, size_t numItems)
 {
   bool  handled  = false;
   Node* solyNode = nullptr;
@@ -696,7 +691,6 @@ void S7Responser::onInspect(InspectorView* view, GraphItem** items, size_t numIt
   }
 
   if (!handled) {
-    DefaultImGuiResponser::onInspect(view, items, numItems);
   }
 
   if (ImGui::IsWindowFocused() && ImGui::IsKeyPressed(ImGuiKey_Escape)) {
@@ -724,7 +718,7 @@ void S7Responser::onInspect(InspectorView* view, GraphItem** items, size_t numIt
   }
 }
 
-void S7Responser::onItemHovered(NetworkView* view, GraphItem* item)
+void s7_onItemHovered(NetworkView* view, GraphItem* item)
 {
   if (ImGui::IsMouseDown(ImGuiMouseButton_Middle)) { // help
     if (auto* node = item->asNode()) {
@@ -746,9 +740,15 @@ void S7Responser::onItemHovered(NetworkView* view, GraphItem* item)
         }
       }
     }
+
   } // end help
 }
 
+void initS7ResponserLogic(nged::NodeGraphEditor* editor)
+{
+  editor->events().onInspect.connect(s7_onInspect);
+  editor->events().onItemHovered.connect(s7_onItemHovered);
+}
 // Factory & Builtins {{{
 struct S7NodeDef
 {
@@ -1104,7 +1104,7 @@ void initEditor(NodeGraphEditor* editor)
   addImGuiInteractions();
 
   editor->setDocType<S7Doc>();
-  editor->setResponser(std::make_shared<S7Responser>());
+  initS7ResponserLogic(editor);
 
   auto itemFactory = addImGuiItems(defaultGraphItemFactory());
   auto viewFactory = defaultViewFactory();
