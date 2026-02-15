@@ -26,7 +26,7 @@ class NodeGraphDoc : public std::enable_shared_from_this<NodeGraphDoc>
 
 ### Lifecycle & I/O
 
--   `NodeGraphDoc(NodeFactoryPtr nodeFactory, GraphItemFactory const* itemFactory)`: Constructor.
+-   `NodeGraphDoc(NodeFactoryPtr nodeFactory, GraphItemFactoryPtr itemFactory)`: Constructor.
 -   `bool open(String path)`: Opens a document from the specified path.
 -   `void close()`: Closes the document.
 -   `bool save()`: Saves the document to the current save path.
@@ -56,10 +56,11 @@ class NodeGraphDoc : public std::enable_shared_from_this<NodeGraphDoc>
 
 -   `void undo()`: Undoes the last operation.
 -   `void redo()`: Redoes the last undone operation.
--   `auto& history()`: Returns the history manager.
--   `auto editGroup(String message)`: Starts a grouped edit operation (transaction).
+-   `NodeGraphDocHistory& history()`: Returns the history manager.
+-   `NodeGraphDocHistory::EditGroup editGroup(String message)`: Starts a grouped edit operation (transaction).
 
-### Notifications
+### Signals
 
--   `void setModifiedNotifier(std::function<void(Graph*)> func)`: Sets a callback to be notified when the graph is modified.
--   `void notifyGraphModified(Graph* graph)`: Triggers the modification callback.
+-   `Signal<Graph*> onGraphModified`: Emitted when the graph is modified. Connect handlers via `doc->onGraphModified.connect(...)`.
+-   `Signal<Node*, String const&, String const&> onNodeRenamed`: Emitted when a node is renamed, with the old and new names.
+-   `void notifyGraphModified(Graph* graph)`: Emits the `onGraphModified` signal.

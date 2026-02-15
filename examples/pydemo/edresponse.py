@@ -1,4 +1,4 @@
-# editor responser
+# editor event handlers
 
 from nged import ImGui, Node
 from nged.msghub import trace

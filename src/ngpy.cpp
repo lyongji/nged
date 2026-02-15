@@ -736,7 +736,6 @@ static void initPyInteractions(PyImGuiNodeGraphEditor* editor)
   });
 
   editor->events().onViewRemoved.connect([editor](nged::GraphView* view) {
-      // Logic from PyResponser::afterViewRemoved
       auto pyview = py::detail::get_object_handle(view, py::detail::get_type_info(typeid(PyGraphView)));
       if (pyview)
       {

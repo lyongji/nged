@@ -159,7 +159,7 @@ public:
   String filterFileOutput(StringView out) override;
 };
 
-void initS7ResponserLogic(nged::NodeGraphEditor* editor);
+void initS7EventHandlers(nged::NodeGraphEditor* editor);
 
 class S7Node : public nged::Node
 {
@@ -742,7 +742,7 @@ void s7_onItemHovered(NetworkView* view, GraphItem* item)
   } // end help
 }
 
-void initS7ResponserLogic(nged::NodeGraphEditor* editor)
+void initS7EventHandlers(nged::NodeGraphEditor* editor)
 {
   editor->events().onInspect.connect(s7_onInspect);
   editor->events().onItemHovered.connect(s7_onItemHovered);
@@ -1102,7 +1102,7 @@ void initEditor(NodeGraphEditor* editor)
   addImGuiInteractions();
 
   editor->setDocType<S7Doc>();
-  initS7ResponserLogic(editor);
+  initS7EventHandlers(editor);
 
   auto itemFactory = addImGuiItems(defaultGraphItemFactory());
   auto viewFactory = defaultViewFactory();
