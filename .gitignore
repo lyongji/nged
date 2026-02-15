@@ -21,3 +21,6 @@ CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 install/
+nged/*.pyi
+nged/*.so
+nged/*.pyd
