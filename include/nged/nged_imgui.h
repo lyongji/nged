@@ -119,9 +119,9 @@ public:
             ImGuiFocusedFlags_ChildWindows | ImGuiFocusedFlags_NoPopupHierarchy));
         }
         if (isFocused && !wasFocused) {
-          Base::editor()->boardcastViewEvent(this, "focus");
+          Base::editor()->broadcastViewEvent(this, "focus");
         } else if (!isFocused && wasFocused) {
-          Base::editor()->boardcastViewEvent(this, "lost-focus");
+          Base::editor()->broadcastViewEvent(this, "lost-focus");
         }
         Base::setFocused(isFocused);
         Base::setHovered(ImGui::IsWindowHovered(

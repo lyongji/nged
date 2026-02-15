@@ -78,7 +78,7 @@ inline bool operator!=(Vec2 a, Vec2 b) { return !(a == b); }
 
 struct Mat3
 {
-  float              m[3][3] = {1.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 1.f};
+  float              m[3][3] = {{1.f, 0.f, 0.f}, {0.f, 1.f, 0.f}, {0.f, 0.f, 1.f}};
   static inline Mat3 fromSRT(Vec2 scale, float rotate, Vec2 translate);
   static inline Mat3 fromRTS(Vec2 scale, float rotate, Vec2 translate);
   inline Vec2        transformPoint(Vec2 v) const;
@@ -296,7 +296,7 @@ inline Mat3 Mat3::inverse() const
 }
 inline Mat3 Mat3::operator*(Mat3 const& that) const
 {
-  Mat3 result = {{0}};
+  Mat3 result = {{{0}}};
   for (int j = 0; j < 3; ++j)
     for (int i = 0; i < 3; ++i)
       for (int k = 0; k < 3; ++k)

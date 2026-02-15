@@ -38,7 +38,7 @@ protected:
 -   `void setSelectedItems(HashSet<ItemID> items)`: Sets the selection.
 -   `ItemID hoveringItem() const`: Returns the ID of the item under the mouse.
 -   `NodePin hoveringPin() const`: Returns the pin under the mouse.
--   `Node* solySelectedNode() const`: Returns the single selected node, or nullptr.
+-   `Node* solelySelectedNode() const`: Returns the single selected node, or nullptr.
 
 ### Navigation
 

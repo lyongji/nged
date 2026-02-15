@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <nged/nged.h>
+#include <nlohmann/json.hpp>
 
 #include <ostream>
 
@@ -88,7 +89,7 @@ class MyNodeFactory: public nged::NodeFactory
 
 TEST_CASE("Graph Creation") {
   auto itemfactory = nged::defaultGraphItemFactory();
-  nged::NodeGraphDoc doc(std::make_shared<MyNodeFactory>(), itemfactory.get());
+  nged::NodeGraphDoc doc(std::make_shared<MyNodeFactory>(), itemfactory);
   doc.makeRoot();
   auto graph = doc.root();
   auto id = graph->add(nged::GraphItemPtr(doc.nodeFactory()->createNode(graph.get(), "null")));
@@ -221,7 +222,7 @@ TEST_CASE("TypedNode Test") {
   }
 
   auto itemfactory = nged::defaultGraphItemFactory();
-  nged::NodeGraphDoc doc(std::make_shared<MyTypedNodeFactory>(), itemfactory.get());
+  nged::NodeGraphDoc doc(std::make_shared<MyTypedNodeFactory>(), itemfactory);
   doc.makeRoot();
   auto graph = doc.root();
   auto sumint = graph->createNode("sumint");
@@ -245,4 +246,106 @@ TEST_CASE("TypedNode Test") {
 
   CHECK(sumint->outputPinColor(0) == nged::Color{255,255,0,255});
   CHECK(sumint->inputPinColor(0) == nged::Color{255,255,0,255});
+}
+
+TEST_CASE("Serialization Round Trip") {
+  auto itemfactory = nged::defaultGraphItemFactory();
+
+  // --- Build a graph ---
+  nged::NodeGraphDoc doc(std::make_shared<MyNodeFactory>(), itemfactory);
+  doc.makeRoot();
+  auto graph = doc.root();
+
+  auto exec  = graph->createNode("exec");   // 4 in, 1 out
+  auto null1 = graph->createNode("null");    // 1 in, 1 out
+  auto null2 = graph->createNode("null");
+  auto merge = graph->createNode("merge");   // -1 (unlimited) in, 1 out
+  auto out   = graph->createNode("out");     // 1 in, 0 out
+
+  // Position nodes so we can verify positions survive round-trip
+  exec->moveTo({100, 200});
+  null1->moveTo({0, 0});
+  null2->moveTo({0, 100});
+
+  // Create links: null1 -> exec:0, null2 -> exec:1, exec -> out
+  auto link1 = graph->setLink(null1->id(), 0, exec->id(), 0);
+  auto link2 = graph->setLink(null2->id(), 0, exec->id(), 1);
+  auto link3 = graph->setLink(exec->id(),  0, out->id(),  0);
+  CHECK(link1 != nullptr);
+  CHECK(link2 != nullptr);
+  CHECK(link3 != nullptr);
+
+  size_t itemCountBefore = doc.numItems();
+  CHECK(itemCountBefore == 8); // 5 nodes + 3 links
+
+  // --- Serialize ---
+  nlohmann::json serialized;
+  CHECK(graph->serialize(serialized));
+
+  // Sanity: JSON should have items and links sections
+  CHECK(serialized.contains("items"));
+  CHECK(serialized.contains("links"));
+  CHECK(serialized["items"].size() == 5);  // 5 nodes (non-link items)
+  CHECK(serialized["links"].size() == 3);  // 3 links
+
+  // --- Deserialize into a fresh doc ---
+  nged::NodeGraphDoc doc2(std::make_shared<MyNodeFactory>(), itemfactory);
+  doc2.makeRoot();
+  auto graph2 = doc2.root();
+
+  CHECK(graph2->deserialize(serialized));
+
+  // --- Verify structure ---
+  // Count nodes (non-link items)
+  int nodeCount = 0;
+  int linkCount = 0;
+  graph2->forEachItem([&](nged::GraphItemPtr item) {
+    if (item->asLink())
+      ++linkCount;
+    else
+      ++nodeCount;
+  });
+  CHECK(nodeCount == 5);
+  CHECK(linkCount == 3);
+
+  // Find the exec node by type and verify its position
+  nged::Node* exec2 = nullptr;
+  nged::Node* null1_2 = nullptr;
+  nged::Node* out2 = nullptr;
+  graph2->forEachItem([&](nged::GraphItemPtr item) {
+    if (auto* n = item->asNode()) {
+      if (n->type() == "exec") exec2 = n;
+      if (n->type() == "out")  out2 = n;
+      if (n->type() == "null" && n->pos().x < 1.f && n->pos().y < 1.f)
+        null1_2 = n;
+    }
+  });
+  REQUIRE(exec2 != nullptr);
+  REQUIRE(out2 != nullptr);
+
+  // Verify position survived
+  CHECK(exec2->pos().x == doctest::Approx(100.f));
+  CHECK(exec2->pos().y == doctest::Approx(200.f));
+
+  // Verify connectivity: exec should have an output link to out
+  nged::InputConnection inConn;
+  CHECK(graph2->getLinkSource(exec2->id(), 0, inConn));
+  REQUIRE(inConn.sourceItem != nged::ID_None);
+  auto sourceNode = graph2->get(inConn.sourceItem)->asNode();
+  REQUIRE(sourceNode != nullptr);
+  CHECK(sourceNode->type() == "null");
+
+  // Verify exec's output goes to out
+  nged::Vector<nged::OutputConnection> outConns;
+  CHECK(graph2->getLinkDestiny(exec2->id(), 0, outConns));
+  CHECK(outConns.size() == 1);
+  CHECK(outConns[0].destItem == out2->id());
+
+  SUBCASE("Double round-trip") {
+    // Serialize again and verify JSON is equivalent
+    nlohmann::json serialized2;
+    CHECK(graph2->serialize(serialized2));
+    CHECK(serialized2["items"].size() == serialized["items"].size());
+    CHECK(serialized2["links"].size() == serialized["links"].size());
+  }
 }

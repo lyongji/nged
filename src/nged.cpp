@@ -186,11 +186,11 @@ void NetworkView::setSelectedItems(HashSet<ItemID> items)
     zOrder_[*items.begin()] = ++highZ_;
   }
   selectedItems_.swap(items);
-  editor()->boardcastViewEvent(this, "selectionChanged");
+  editor()->broadcastViewEvent(this, "selectionChanged");
   editor()->events().onSelectionChanged.emit(this);
 }
 
-Node* NetworkView::solySelectedNode() const
+Node* NetworkView::solelySelectedNode() const
 {
   Node* solyNode = nullptr;
   for (auto id: selectedItems_) {
@@ -1126,7 +1126,7 @@ static inline StringView asciiToName(uint8_t ch)
   return "";
 }
 
-String Shortcut::describ(Shortcut shortcut)
+String Shortcut::describe(Shortcut shortcut)
 {
   Vector<StringView> shortcutKeys;
   if (shortcut.key) {
@@ -1211,7 +1211,7 @@ void NodeGraphEditor::initCommands()
     [](GraphView* view, StringView args) {
       if (view->kind() == "network") {
         auto* netview = static_cast<NetworkView*>(view);
-        if (auto node = netview->solySelectedNode()) {
+        if (auto node = netview->solelySelectedNode()) {
           String newname(args);
           String oldname = node->name();
           if (!node->rename(String(args), newname))
@@ -1233,7 +1233,7 @@ void NodeGraphEditor::initCommands()
     [](GraphView* view)->String {
       if (view->kind() == "network") {
         auto* netview = static_cast<NetworkView*>(view);
-        if (auto node = netview->solySelectedNode()) {
+        if (auto node = netview->solelySelectedNode()) {
           return String(node->name());
         } else {
           return "Select ONE AND ONLY ONE NODE to rename";
@@ -1450,11 +1450,11 @@ NodeGraphEditor::ViewPtr NodeGraphEditor::addView(NodeGraphEditor::DocPtr doc, S
 
 NodeGraphEditor::DocPtr NodeGraphEditor::createNewDocAndDefaultViews()
 {
-  auto doc = docFactory_(nodeFactory_, itemFactory_.get());
+  auto doc = docFactory_(nodeFactory_, itemFactory_);
   doc->history().reset(true);
   doc->history().markSaved();
-  doc->setModifiedNotifier([this](Graph* g) { notifyGraphModified(g); });
-  doc->setNodeRenamedNotifier([this](Node* node, String const& oldName, String const& newName) {
+  doc->onGraphModified.connect([this](Graph* g) { notifyGraphModified(g); });
+  doc->onNodeRenamed.connect([this](Node* node, String const& oldName, String const& newName) {
       events().onNodeRenamed.emit(node->parent(), node);
   });
   addView(doc, "network");
@@ -1500,9 +1500,9 @@ bool NodeGraphEditor::loadDocInto(StringView path, NodeGraphDocPtr dest)
 
 NodeGraphEditor::DocPtr NodeGraphEditor::openDoc(StringView path)
 {
-  auto doc = docFactory_(nodeFactory_, itemFactory_.get());
-  doc->setModifiedNotifier([this](Graph* g) { notifyGraphModified(g); });
-  doc->setNodeRenamedNotifier([this](Node* node, String const& oldName, String const& newName) {
+  auto doc = docFactory_(nodeFactory_, itemFactory_);
+  doc->onGraphModified.connect([this](Graph* g) { notifyGraphModified(g); });
+  doc->onNodeRenamed.connect([this](Node* node, String const& oldName, String const& newName) {
       spdlog::info("nodeRenamedNotifier lambda called for node {}", node->name());
       events().onNodeRenamed.emit(node->parent(), node);
   });
@@ -1606,7 +1606,7 @@ void NodeGraphEditor::notifyGraphModified(Graph* graph)
   }
 }
 
-void NodeGraphEditor::boardcastViewEvent(GraphView* view, StringView eventType)
+void NodeGraphEditor::broadcastViewEvent(GraphView* view, StringView eventType)
 {
   for (auto&& v : views_) {
     if (v.get() != view)

@@ -1,5 +1,8 @@
 #include "texture.h"
 
+#ifdef __APPLE__
+#define GL_SILENCE_DEPRECATION
+#endif
 #include <GLFW/glfw3.h>
 
 namespace nged {

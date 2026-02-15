@@ -46,7 +46,7 @@ def evalSelectedNode(view):
     assert isinstance(view, NetworkView)
     doc = view.doc or view.graph.doc
     ctx = doc.evalContext
-    selection = view.solySelectedNode
+    selection = view.solelySelectedNode
     if selection:
         trace(
             f'----------- eval {selection.name} ({selection.uid}) ------------')

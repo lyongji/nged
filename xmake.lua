@@ -4,11 +4,25 @@ add_rules("mode.release")
 add_rules("mode.debug")
 add_rules("mode.profile")
 add_rules("mode.check")
+set_warnings('all', 'extra')
+add_cxflags('-Wno-unused-parameter', {tools = {'gcc', 'clang'}})
 
 if is_mode('debug') then
   add_defines('DEBUG')
   set_symbols('debug')
   set_optimize('none')
+end
+
+option('sanitize')
+  set_default('')
+  set_description('enable sanitizers (address, undefined, thread, or comma-separated)')
+  set_showmenu(true)
+option_end()
+local sanitize = get_config('sanitize')
+if sanitize and sanitize ~= '' then
+  add_cxflags('-fsanitize=' .. sanitize, {force = true})
+  add_ldflags('-fsanitize=' .. sanitize, {force = true})
+  add_shflags('-fsanitize=' .. sanitize, {force = true})
 end
 
 option('backend')
@@ -68,7 +82,7 @@ rule('parm_bin2c')
       if tool then python = tool.program end
     end
     if not python then python = "python3" end
-    
+
     local bin2c = path.join(os.projectdir(), "python/bin2c.py")
     local headerfile = path.join(target:autogendir(), path.filename(sourcefile) .. ".h")
     
@@ -98,11 +112,13 @@ rule('python_config')
     end
     
     print("Warning: Python 3 not found via find_package. Trying manual detection...")
+    import("lib.detect.find_tool")
     local python = get_config("python")
     if not python or python == "auto" or python == "no" then
       local tool = find_tool("python3") or find_tool("python")
       if tool then python = tool.program end
     end
+    if not python then python = "python3" end
     
     if python then
       print("Using python executable: " .. python)
@@ -158,12 +174,12 @@ if get_config('python') ~= 'no' then
 
     on_load(function (target)
         import("lib.detect.find_tool")
-        local python = get_config("python")
-        if not python or python == "auto" or python == "no" then
-            local tool = find_tool("python3") or find_tool("python")
-            if tool then python = tool.program end
-        end
-        if not python then python = "python3" end
+    local python = get_config("python")
+    if not python or python == "auto" or python == "no" then
+      local tool = find_tool("python3") or find_tool("python")
+      if tool then python = tool.program end
+    end
+    if not python then python = "python3" end
 
         local suffix
         try {
@@ -201,13 +217,13 @@ if get_config('python') ~= 'no' then
     
     on_run(function(target)
         import("lib.detect.find_tool")
-        local python = get_config("python")
-        if not python or python == "auto" or python == "no" then
-            local tool = find_tool("python3") or find_tool("python")
-            if tool then python = tool.program end
-        end
-        if not python then python = "python3" end
-        
+    local python = get_config("python")
+    if not python or python == "auto" or python == "no" then
+      local tool = find_tool("python3") or find_tool("python")
+      if tool then python = tool.program end
+    end
+    if not python then python = "python3" end
+
         local envs = {}
         if get_config('pyextension_fullpath') then
              envs.PYTHONPATH = path.directory(get_config('pyextension_fullpath'))
@@ -440,25 +456,25 @@ task('pytest')
   on_run(function ()
     import("core.project.project")
     import("core.project.config")
-    import("lib.detect.find_tool")
-    
+
     -- Load the project configuration (from .xmake/...)
     config.load()
-    
+
     -- Ensure ngpy is built
     os.exec("xmake build ngpy")
-    
+
     -- Load targets now that config is loaded
     project.load_targets()
     local target = project.target("ngpy")
-    
+
+    import("lib.detect.find_tool")
     local python = get_config("python")
     if not python or python == "auto" or python == "no" then
-        local tool = find_tool("python3") or find_tool("python")
-        if tool then python = tool.program end
+      local tool = find_tool("python3") or find_tool("python")
+      if tool then python = tool.program end
     end
     if not python then python = "python3" end
-    
+
     -- Now target:targetfile() should be correct
     local targetfile = target:targetfile()
     print("Built extension at: " .. targetfile)

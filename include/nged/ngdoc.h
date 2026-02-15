@@ -1,289 +1,20 @@
 #pragma once
 
-#include "gmath.h"
-#include "utils.h"
-#include <nlohmann/json_fwd.hpp>
-#include <fmt/format.h> // TODO: maybe use std::format
-#include <uuid.h>
-#include <phmap.h>
+// Umbrella header: includes all ngdoc sub-headers.
+// Individual sub-headers can be included for finer-grained dependencies:
+//   ngdoc/types.h    — ItemID, connections, type aliases, forward declarations
+//   ngdoc/msghub.h   — MessageHub logging facility
+//   ngdoc/canvas.h   — Canvas abstract drawing interface
 
-#include <algorithm>
-#include <cassert>
-#include <chrono>
+#include "ngdoc/types.h"
+#include "ngdoc/msghub.h"
+
 #include <cmath>
-#include <cstdint>
-#include <deque>
-#include <functional>
-#include <limits>
 #include <map>
-#include <memory>
-#include <optional>
 #include <random>
 #include <set>
-#include <shared_mutex>
-#include <string>
-#include <vector>
-
-namespace nged { // {{{
-
-using sint  = intptr_t;
-using uint  = uintptr_t;
-using Json  = nlohmann::json;
-using Vec2  = gmath::Vec2;
-using Mat3  = gmath::Mat3;
-using AABB  = gmath::AABB;
-using Color = gmath::sRGBColor;
-
-template<class K, class V>
-using HashMap = phmap::flat_hash_map<K, V>;
-template<class K>
-using HashSet = phmap::flat_hash_set<K>;
-template<class T>
-using Vector     = std::vector<T>;
-using String     = std::string;
-using StringView = std::string_view;
-template<class T>
-using Optional   = std::optional<T>;
-
-// ItemID & Connection {{{
-class ItemID
-{
-  union
-  {
-    uint64_t id_;
-    struct
-    {
-      uint32_t random_;
-      uint32_t index_;
-    };
-  };
-
-public:
-  constexpr ItemID(uint64_t id = -2) : id_{id} {}
-  constexpr ItemID(uint32_t random, uint32_t index) : random_(random), index_(index) {}
-  constexpr ItemID(ItemID const& that)            = default;
-  constexpr ItemID& operator=(ItemID const& that) = default;
-
-  // make it able to be map key
-  bool operator<(ItemID const& that) const { return id_ < that.id_; }
-  // make it able to be hash map key
-  bool operator==(ItemID const& that) const { return id_ == that.id_; }
-  bool operator!=(ItemID const& that) const { return id_ != that.id_; }
-
-  size_t   hash() const { return std::hash<uint64_t>()(id_); }
-  uint64_t value() const { return id_; }
-  uint32_t index() const { return index_; }
-};
-
-static constexpr ItemID ID_None = {-1u, -1u};
-
-/// Connection to an output port of source node
-struct InputConnection
-{
-  ItemID sourceItem{ID_None};
-  sint   sourcePort{-1};
-
-  bool operator==(InputConnection const& that) const
-  {
-    return sourceItem == that.sourceItem && sourcePort == that.sourcePort;
-  }
-};
-
-/// Connection to an input port of destiny node
-struct OutputConnection
-{
-  ItemID destItem{ID_None};
-  sint   destPort{-1};
-
-  bool operator==(OutputConnection const& that) const
-  {
-    return destItem == that.destItem && destPort == that.destPort;
-  }
-};
-
-struct NodePin
-{
-  ItemID node  = ID_None;
-  sint   index = -1;
-  enum class Type
-  {
-    None,
-    In,
-    Out
-  } type = Type::None;
-  bool operator==(NodePin const& that) const
-  {
-    return node == that.node && index == that.index && type == that.type;
-  }
-  bool operator!=(NodePin const& that) const { return !operator==(that); }
-};
-
-static constexpr NodePin PIN_None = {ID_None, -1, NodePin::Type::None};
-// }}}
-
-} // }}} namespace nged
-
-// std::hash {{{
-template<>
-struct std::hash<nged::ItemID>
-{
-  size_t operator()(nged::ItemID id) const { return id.hash(); }
-};
-
-template<>
-struct std::hash<nged::OutputConnection>
-{
-  size_t operator()(nged::OutputConnection const& c) const
-  {
-    return c.destItem.hash() ^ std::hash<nged::sint>()(c.destPort * 2021);
-  }
-};
-// }}}
 
 namespace nged {
-
-class Graph;
-class GraphItem;
-class Node;
-class Link;
-class Router;
-class ResizableBox;
-class GroupBox;
-class GraphItemFactory;
-class NodeGraphDoc;
-class Canvas;
-class NodeFactory;
-
-using GraphItemPtr        = std::shared_ptr<GraphItem>;
-using NodePtr             = std::shared_ptr<Node>;
-using LinkPtr             = std::shared_ptr<Link>;
-using RouterPtr           = std::shared_ptr<Router>;
-using GraphPtr            = std::shared_ptr<Graph>;
-using WeakGraphPtr        = std::weak_ptr<Graph>;
-using NodeGraphDocPtr     = std::shared_ptr<NodeGraphDoc>;
-using NodeFactoryPtr      = std::shared_ptr<NodeFactory>;
-using GraphItemFactoryPtr = std::shared_ptr<GraphItemFactory>;
-using UID                 = uuids::uuid;
-
-// UID Related {{{
-UID generateUID();
-
-inline UID uidFromString(StringView str)
-{
-  return uuids::uuid::from_string(str).value();
-}
-
-inline String uidToString(UID uid)
-{
-  return uuids::to_string(uid);
-}
-// }}}
-
-// MessageHub {{{
-class MessageHub
-{
-public:
-  ~MessageHub() = default;
-  enum class Category : int
-  {
-    Log = 0,
-    Notice,
-    Output,
-
-    Count
-  };
-  enum class Verbosity
-  {
-    Trace = 0,
-    Debug,
-    Info,
-    Warning,
-    Error,
-    Fatal,
-
-    Text,
-
-    Count
-  };
-  using TimePoint = std::chrono::time_point<std::chrono::system_clock>;
-  struct Message
-  {
-    Message(String s, Verbosity v, TimePoint t) : content(std::move(s)), verbosity(v), timestamp(t)
-    {
-    }
-    Message(Message&& m) = default;
-
-    String    content;
-    Verbosity verbosity;
-    TimePoint timestamp;
-  };
-
-  void addMessage(String message, Category category, Verbosity verbose);
-  void clear(Category category);
-  void clearAll();
-  void setCountLimit(size_t count);
-
-  template<class F>
-  void foreach (Category category, F && func) const
-  {
-    std::shared_lock lock(mutex_);
-    for (auto&& s : messageCategories_[static_cast<int>(category)]) {
-      func(s);
-    }
-  }
-  template<class F>
-  void forrange(Category category, F&& func, size_t offset, size_t count = -1) const
-  {
-    std::shared_lock lock(mutex_);
-    auto const&      queue = messageCategories_[static_cast<int>(category)];
-    for (size_t i = offset,
-                n = count == -1 ? queue.size() : std::min(offset + count, queue.size());
-         i < n;
-         ++i) {
-      func(queue[i]);
-    }
-  }
-  size_t count(Category category) const
-  {
-    std::shared_lock lock(mutex_);
-    return messageCategories_[static_cast<int>(category)].size();
-  }
-
-  static MessageHub& instance() { return instance_; }
-
-protected:
-  std::deque<Message>       messageCategories_[static_cast<int>(Category::Count)];
-  mutable std::shared_mutex mutex_;
-  size_t                    countLimit_ = 4096;
-
-  static MessageHub instance_;
-
-private:
-  MessageHub()                       = default;
-  MessageHub(MessageHub const& that) = delete;
-
-public: // helpers
-#define EMIT_MESSAGE_(msg, cat, verb) \
-  MessageHub::instance().addMessage((msg), Category::cat, Verbosity::verb)
-#define DEFINE_MSG_VARIANT_(func, cat, verb)                                        \
-  static inline void func(String msg) { EMIT_MESSAGE_(std::move(msg), cat, verb); } \
-  template<class... T>                                                              \
-  static inline void func##f(T... args)                                             \
-  {                                                                                 \
-    EMIT_MESSAGE_(fmt::format(std::forward<T>(args)...), cat, verb);                \
-  }
-  DEFINE_MSG_VARIANT_(trace, Log, Trace)
-  DEFINE_MSG_VARIANT_(debug, Log, Debug)
-  DEFINE_MSG_VARIANT_(info, Log, Info)
-  DEFINE_MSG_VARIANT_(warn, Log, Warning)
-  DEFINE_MSG_VARIANT_(error, Log, Error)
-  DEFINE_MSG_VARIANT_(fatal, Log, Fatal)
-  DEFINE_MSG_VARIANT_(notice, Notice, Text)
-  DEFINE_MSG_VARIANT_(output, Output, Text)
-#undef DEFINE_MSG_VARIANT_
-#undef EMIT_MESSAGE_
-};
-// }}} MessageHub
 
 // Graph Item & Registry {{{
 enum class GraphItemState
@@ -338,7 +69,7 @@ public:
   virtual void settled() {} // deserialized and added to graph, and id is known
 
   /// draw myself
-  virtual void draw(Canvas*, GraphItemState state) const {}
+  virtual void draw(Canvas*, GraphItemState) const {}
 
   /// hit test
   virtual bool hitTest(Vec2 point) const { return localBound().contains(point - pos_); }
@@ -689,7 +420,7 @@ public:
 
   OutputConnection const& output() const { return output_; }
   InputConnection const&  input() const { return input_; }
-  auto const&             path() const { return path_; }
+  Vector<Vec2> const&     path() const { return path_; }
 
   virtual bool hitTest(Vec2 pt) const override;
   virtual bool hitTest(AABB bb) const override;
@@ -719,7 +450,7 @@ public:
 
   virtual Color color() const override { return color_; }
   virtual void  setColor(Color c) override { color_ = c; }
-  
+
   Color linkColor() const { return linkColor_.value_or(color_); } // for typed nodes, link color be the hint for type
   void  setLinkColor(Color c) { linkColor_ = c; }
 
@@ -768,7 +499,7 @@ class GroupBox
 public:
   GroupBox(Graph* parent);
 
-  auto const& containingItems() const { return containingItems_; }
+  HashSet<ItemID> const& containingItems() const { return containingItems_; }
   void        setContainingItems(HashSet<ItemID> ids) { containingItems_ = std::move(ids); }
   void        remapItems(HashMap<size_t, ItemID> const& idmap); // idmap: old id -> new id, used mainly for pasting
   void        insertItem(ItemID id);
@@ -809,18 +540,20 @@ public:
   Color const& backgroundColor() const { return backgroundColor_; }
   void         setBackgroundColor(Color const& c) { backgroundColor_ = c; }
 
-  auto const& text() const { return text_; }
+  String const& text() const { return text_; }
   void        setText(String text);
 
   virtual Color color() const override { return color_; }
   virtual void  setColor(Color c) override
   {
+    static constexpr int bgColorDivisor = 2; // background RGB dimming
+    static constexpr int bgAlphaDivisor = 3; // background alpha dimming
     color_           = c;
     backgroundColor_ = c;
-    backgroundColor_.r /= 2;
-    backgroundColor_.g /= 2;
-    backgroundColor_.b /= 2;
-    backgroundColor_.a /= 3;
+    backgroundColor_.r /= bgColorDivisor;
+    backgroundColor_.g /= bgColorDivisor;
+    backgroundColor_.b /= bgColorDivisor;
+    backgroundColor_.a /= bgAlphaDivisor;
   }
 
   virtual Dyeable const* asDyeable() const override { return this; }
@@ -925,14 +658,14 @@ public:
     auto        icnt   = irange.end - irange.begin;
     if (nthInput < 0)
       nthInput += icnt;
-    if (nthInput < 0 || nthInput >= icnt)
+    if (nthInput < 0 || static_cast<size_t>(nthInput) >= icnt)
       return -1;
     return sint(inputs_[irange.begin + nthInput]);
   }
   Node* inputOf(size_t nthNode, int nthInput) const
   {
     auto idx = inputIndexOf(nthNode, nthInput);
-    if (idx < 0 || idx >= nodes_.size())
+    if (idx < 0 || static_cast<size_t>(idx) >= nodes_.size())
       return nullptr;
     return nodes_[idx].get();
   }
@@ -942,14 +675,14 @@ public:
     auto        ocnt   = orange.end - orange.begin;
     if (nthOutput < 0)
       nthOutput += ocnt;
-    if (nthOutput < 0 || nthOutput >= ocnt)
+    if (nthOutput < 0 || static_cast<size_t>(nthOutput) >= ocnt)
       return -1;
     return sint(outputs_[orange.begin + nthOutput]);
   }
   Node* outputOf(size_t nthNode, int nthOutput) const
   {
     auto idx = outputIndexOf(nthNode, nthOutput);
-    if (idx < 0 || idx >= nodes_.size())
+    if (idx < 0 || static_cast<size_t>(idx) >= nodes_.size())
       return nullptr;
     return nodes_[idx].get();
   }
@@ -1039,8 +772,8 @@ public:
   Graph*        parent() const { return parent_; }
   String const& name() const { return name_; }
   void          rename(String newname) { name_ = std::move(newname); }
-  auto const&   items() const { return items_; }
-  auto const&   allLinks() const { return links_; }
+  HashSet<ItemID> const& items() const { return items_; }
+  HashMap<OutputConnection, InputConnection> const& allLinks() const { return links_; }
   bool          readonly() const;
   bool          selfReadonly() const { return readonly_; }
   void          setSelfReadonly(bool ro) { readonly_ = ro; }
@@ -1143,9 +876,14 @@ public:
   void release(ItemID id)
   {
     auto index = id.index();
-    assert(index < items_.size() && items_[index]);
+    if (index >= items_.size() || !items_[index]) {
+      assert(false && "GraphItemPool::release: invalid id");
+      return;
+    }
     auto item = items_[index];
     assert(item->id() == id);
+    if (item->id() != id)
+      return;
     uidMap_.erase(item->uid());
     freeList_.push_back(index);
     items_[index] = nullptr;
@@ -1201,6 +939,7 @@ class NodeGraphDocHistory
   int32_t        indexAtUndoStack_ = -1;
   int32_t        atEditGroupLevel_ = 0; // current editing group - when leaving group of level 0,
 
+public:
   class EditGroup
   {
     NodeGraphDocHistory* history_;
@@ -1267,12 +1006,9 @@ class NodeGraphDoc : public std::enable_shared_from_this<NodeGraphDoc>
   bool                readonly_ = false;
   bool                deserializeInplace_ =
     true; // if true, uid will be used for match items in place, otherwise, uids will be new
-  GraphItemFactory const* itemFactory_ = nullptr;
+  GraphItemFactoryPtr     itemFactory_;
   NodeFactoryPtr          nodeFactory_;
 
-  std::function<void(Graph*)> graphModifiedNotifier_;
-  std::function<void(Node*, String const&, String const&)> nodeRenamedNotifier_;
-  
 protected:
   GraphPtr       root_ = nullptr;
   GraphItemPool& itemPool() { return pool_; }
@@ -1281,6 +1017,9 @@ protected:
   NodeGraphDoc& operator=(NodeGraphDoc&&) = delete;
 
 public:
+  Signal<Graph*>                              onGraphModified;
+  Signal<Node*, String const&, String const&> onNodeRenamed;
+
   // before loading / saving content into file, do these transforms
   // filterFileInput expects to return a valid JSON string
   // filterFileOutput will recieve JSON string as input
@@ -1294,7 +1033,7 @@ public:
   virtual void moveUID(UID const& oldUID, UID const& newUID) { pool_.moveUID(oldUID, newUID); }
   virtual void makeRoot();
 
-  NodeGraphDoc(NodeFactoryPtr nodeFactory, GraphItemFactory const* itemFactory);
+  NodeGraphDoc(NodeFactoryPtr nodeFactory, GraphItemFactoryPtr itemFactory);
   virtual ~NodeGraphDoc();
 
   StringView title() const;
@@ -1318,204 +1057,23 @@ public:
   void                    undo() { history_.undo(); }
   void                    redo() { history_.redo(); }
   NodeFactory const*      nodeFactory() const { return nodeFactory_.get(); }
-  GraphItemFactory const* itemFactory() const { return itemFactory_; }
-  auto&                   history() { return history_; }
+  GraphItemFactory const* itemFactory() const { return itemFactory_.get(); }
+  NodeGraphDocHistory&    history() { return history_; }
   GraphItemPtr            findItemByUID(UID const& uid) { return pool_.get(uid); }
 
   void setDeserializeInplace(bool dsi) { deserializeInplace_ = dsi; }
   bool deserializeInplace() const { return deserializeInplace_; }
-  auto editGroup(String message) { return history_.editGroup(std::move(message)); }
+  NodeGraphDocHistory::EditGroup editGroup(String message) { return history_.editGroup(std::move(message)); }
 
-  void setModifiedNotifier(std::function<void(Graph*)> func)
-  {
-    graphModifiedNotifier_ = std::move(func);
-  }
-  void setNodeRenamedNotifier(std::function<void(Node*, String const&, String const&)> func)
-  {
-    nodeRenamedNotifier_ = std::move(func);
-  }
   void notifyGraphModified(Graph* graph);
   void notifyNodeRenamed(Node* node, String const& oldName, String const& newName)
   {
-    if (nodeRenamedNotifier_) nodeRenamedNotifier_(node, oldName, newName);
+    onNodeRenamed.emit(node, oldName, newName);
   }
 };
 // }}} Doc
 
-// Canvas {{{
-class Canvas
-{
-public:
-  enum class TextAlign
-  {
-    Left,
-    Center,
-    Right
-  };
-  enum class TextVerticalAlign
-  {
-    Top,
-    Center,
-    Bottom
-  };
-  enum class FontFamily
-  {
-    Serif,
-    SansSerif,
-    Mono,
-    Icon
-  };
-  enum class FontStyle
-  {
-    Regular,
-    Italic,
-    Strong
-  };
-  enum class FontSize
-  {
-    Normal,
-    Small,
-    Large
-  };
-  enum class Layer : int
-  { // z-order
-    Lower = 0,
-    Low,
-    Standard,
-    High,
-    Higher,
-
-    Count
-  };
-
-  struct ShapeStyle
-  {
-    bool     filled;
-    uint32_t fillColor; // RGBA
-    float    strokeWidth;
-    uint32_t strokeColor; // RGBA
-  };
-  static constexpr ShapeStyle defaultShapeStyle = {true, 0xff0000ff, 0.f, 0xffffffff};
-  struct TextStyle
-  {
-    TextAlign         align;
-    TextVerticalAlign valign;
-    FontFamily        font;
-    FontStyle         style;
-    FontSize          size;
-    uint32_t          color;
-  };
-
-  class Image
-  {
-  public:
-    virtual ~Image() = default;
-  };
-  using ImagePtr = std::shared_ptr<Image>;
-
-  static constexpr TextStyle defaultTextStyle = {
-    TextAlign::Left,
-    TextVerticalAlign::Center,
-    FontFamily::SansSerif,
-    FontStyle::Regular,
-    FontSize::Normal,
-    0xffffffff};
-
-protected:
-  // states
-  Vec2  viewPos_        = {0, 0};
-  Vec2  viewSize_       = {800, 600};
-  float viewScale_      = 1.0f;
-  Mat3  canvasToScreen_ = {1, 0, 0, 0, 1, 0, 0, 0, 1};
-  Mat3  screenToCanvas_ = {1, 0, 0, 0, 1, 0, 0, 0, 1};
-  Layer layer_          = Layer::Standard;
-
-  // display options
-  bool displayTypeHint_ = false;
-
-  Vector<Layer> layerStack_ = {};
-
-  virtual void updateMatrix()
-  {
-    canvasToScreen_ = Mat3::fromSRT(Vec2(viewScale_, viewScale_), 1.f, -viewPos_) *
-                      Mat3::fromRTS(Vec2(1, 1), 0, viewSize_ * 0.5f);
-    screenToCanvas_ = canvasToScreen_.inverse();
-  }
-
-public:
-  Vec2  viewSize() const { return viewSize_; }
-  Vec2  viewPos() const { return viewPos_; }
-  float viewScale() const { return viewScale_; }
-  Mat3  canvasToScreen() const { return canvasToScreen_; }
-  Mat3  screenToCanvas() const { return screenToCanvas_; }
-  bool  displayTypeHint() const { return displayTypeHint_; }
-  void  setDisplayTypeHint(bool b) { displayTypeHint_ = b; }
-
-  void setViewSize(Vec2 size) { viewSize_ = size; }
-  void setViewPos(Vec2 pos)
-  {
-    viewPos_ = pos;
-    updateMatrix();
-  }
-  void setViewScale(float scale)
-  {
-    viewScale_ = scale;
-    updateMatrix();
-  }
-  void pushLayer(Layer layer)
-  {
-    layerStack_.push_back(layer_);
-    setCurrentLayer(layer);
-  }
-  void popLayer()
-  {
-    assert(layerStack_.size() > 0);
-    setCurrentLayer(layerStack_.back());
-    layerStack_.pop_back();
-  }
-  static float floatFontSize(FontSize enumsize);
-
-  virtual ~Canvas() = default;
-  virtual AABB viewport() const
-  {
-    return AABB(screenToCanvas_.transformPoint({0, 0}), screenToCanvas_.transformPoint(viewSize_));
-  }
-  virtual Vec2 measureTextSize(StringView text, TextStyle const& style = defaultTextStyle)
-    const                                                                                     = 0;
-  virtual void setCurrentLayer(Layer layer)                                                   = 0;
-  virtual void drawLine(Vec2 a, Vec2 b, uint32_t color = 0x000000ff, float width = 1.f) const = 0;
-  virtual void drawRect(
-    Vec2       topleft,
-    Vec2       bottomright,
-    float      cornerradius = 0,
-    ShapeStyle style        = defaultShapeStyle) const = 0;
-  virtual void drawCircle(
-    Vec2       center,
-    float      radius,
-    int        nsegments = 0,
-    ShapeStyle style     = defaultShapeStyle) const = 0;
-  virtual void drawPoly(
-    Vec2 const* pts,
-    sint        numpt,
-    bool        closed = true,
-    ShapeStyle  style  = defaultShapeStyle) const = 0;
-  virtual void drawText(Vec2 pos, StringView text, TextStyle const& style = defaultTextStyle)
-    const = 0;
-  virtual void drawTextUntransformed(
-    Vec2             pos,
-    StringView       text,
-    TextStyle const& style = defaultTextStyle,
-    float            scale = 1.f) const = 0;
-
-  // `data` assumed to be 32-bit RGBA, with 8-bit per channel, and `width` x `height` in size
-  static ImagePtr createImage(uint8_t const* data, int width, int height);
-  // this function is implemented in the-canvas-you-are-going-to-use, e.g. ImGuiCanvas
-  // TODO: maybe we should put it inside a polymorphic Resource class, so that
-  //       we could support more than one type of Canvas at once
-
-  // draws a rect at (pmin to pmax) with given image
-  virtual void drawImage(ImagePtr image, Vec2 pmin, Vec2 pmax, Vec2 uvmin={0,0}, Vec2 uvmax={1,1}) const = 0;
-};
-// }}} Canvas
-
+// Canvas - included from sub-header
 } // namespace nged
+
+#include "ngdoc/canvas.h"

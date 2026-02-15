@@ -51,8 +51,8 @@ class S7Doc : public nged::NodeGraphDoc
   s7_scheme* s7instance_ = nullptr;
 
 public:
-  S7Doc(NodeFactoryPtr nodeFactory, GraphItemFactory const* itemFactory)
-      : NodeGraphDoc(nodeFactory, itemFactory)
+  S7Doc(NodeFactoryPtr nodeFactory, GraphItemFactoryPtr itemFactory)
+      : NodeGraphDoc(nodeFactory, std::move(itemFactory))
   {
     s7instance_ = s7_init();
     addS7Extenstions(s7instance_);
@@ -533,7 +533,6 @@ public:
 
     for (size_t i = related.size(); i != 0; --i) {
       auto*           self       = static_cast<S7Node*>(related.node(i - 1));
-      bool            inputdirty = false;
       Vector<S7Node*> inputs(related.inputCount(i - 1));
       for (int c = 0, n = related.inputCount(i - 1); c < n; ++c) {
         if (auto* inputnode = related.inputOf(i - 1, c)) {
@@ -547,7 +546,6 @@ public:
           continue;
         maxInputVersion = std::max(maxInputVersion, inputnode->version());
         if (inputnode->dirty() || inputnode->version() > self->version()) {
-          inputdirty = true;
           self->setDirty();
         }
       }
@@ -1090,7 +1088,7 @@ void addExtraCommands(NodeGraphEditor* editor)
     "Run To Selected Node",
     [](GraphView* view, StringView args) {
       auto* netview = static_cast<NetworkView*>(view);
-      if (auto* node = netview->solySelectedNode()) {
+      if (auto* node = netview->solelySelectedNode()) {
         auto doc = static_cast<S7Doc*>(view->graph()->docRoot());
         evalNodeAndPrintToOutput(view->editor(), doc, static_cast<S7Node*>(node));
       }

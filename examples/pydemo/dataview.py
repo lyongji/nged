@@ -40,7 +40,7 @@ class DataView(View):
             return
         if view.kind == 'network' and view.graph != self.graph:
             self.reset(view.graph)
-        selection = view.solySelectedNode
+        selection = view.solelySelectedNode
         if selection:
             self.viewingNode = selection.id
 

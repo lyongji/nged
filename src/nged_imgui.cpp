@@ -778,7 +778,7 @@ void CommandManager::update(GraphView* view)
     for (size_t idx : order) {
       auto               cmd = cmdList[idx];
       Vector<StringView> shortcutKeys;
-      auto shortcutStr = Shortcut::describ(cmd->shortcut());
+      auto shortcutStr = Shortcut::describe(cmd->shortcut());
       if (
         ImGui::MenuItem(cmd->description().c_str(), shortcutStr.c_str()) ||
         (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter, false))) {
@@ -1263,7 +1263,7 @@ public:
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(cmd->view().c_str());
             ImGui::TableNextColumn();
-            auto cmdstr = Shortcut::describ(cmd->shortcut());
+            auto cmdstr = Shortcut::describe(cmd->shortcut());
             ImGui::TextUnformatted(cmdstr.c_str());
           }
           ImGui::EndTable();
@@ -1461,12 +1461,12 @@ static DockLayoutNode parseLayoutDescription(std::string_view desc)
 
 NodeGraphDocPtr ImGuiNodeGraphEditor::createNewDocAndDefaultViews()
 {
-  auto doc = docFactory_(nodeFactory(), itemFactory());
+  auto doc = docFactory_(nodeFactory(), itemFactory_);
   doc->makeRoot();
   doc->history().reset(true);
   doc->history().markSaved();
-  doc->setModifiedNotifier([this](Graph* g){notifyGraphModified(g);});
-  doc->setNodeRenamedNotifier([this](Node* node, String const& oldName, String const& newName) {
+  doc->onGraphModified.connect([this](Graph* g){notifyGraphModified(g);});
+  doc->onNodeRenamed.connect([this](Node* node, String const& oldName, String const& newName) {
       events().onNodeRenamed.emit(node->parent(), node);
   });
 

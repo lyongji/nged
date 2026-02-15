@@ -257,13 +257,13 @@ public:
   Canvas*     canvas() const { return canvas_.get(); }
   bool        canvasIsFocused() const { return canvasIsFocused_; }
   void        setCanvasIsFocused(bool f) { canvasIsFocused_ = f; }
-  auto const& selectedItems() const { return selectedItems_; }
+  HashSet<ItemID> const& selectedItems() const { return selectedItems_; }
   void        setSelectedItems(HashSet<ItemID> items);
   ItemID      hoveringItem() const { return hoveringItem_; }
   void        setHoveringItem(ItemID item) { hoveringItem_ = item; }
   NodePin     hoveringPin() const { return hoveringPin_; }
   void        setHoveringPin(NodePin pin) { hoveringPin_ = pin; }
-  auto const& hiddenItems() const { return hiddenItems_; }
+  HashSet<ItemID> const& hiddenItems() const { return hiddenItems_; }
   void        hideItem(ItemID id) { hiddenItems_.insert(id); }
   void        hideItemOnce(ItemID id) { hiddenOnceItems_.insert(id); }
   void        unhideItem(ItemID id) { hiddenItems_.erase(id); }
@@ -271,7 +271,7 @@ public:
   bool        toggleNodeFlagOfSelection(uint64_t flag); // set flag if none of the selected node has the flag, otherwise unset the flag, returns the previous flag
   bool        copyTo(Json&);
   bool        pasteFrom(Json const&);
-  Node*       solySelectedNode() const;
+  Node*       solelySelectedNode() const;
 
   // zoom to selected or all if nothing was selected
   // easingOrder == 1 -> linear
@@ -377,10 +377,10 @@ protected:
 public:
   InspectorView(NodeGraphEditor* editor);
   virtual ~InspectorView() = default;
-  auto linkedView() const { return linkedView_.lock(); }
+  GraphViewPtr linkedView() const { return linkedView_.lock(); }
   bool lockOnItem() const { return lockOnItem_; }
   bool lockOnView() const { return lockOnView_; }
-  auto const& inspectingItems() const { return inspectingItems_; }
+  HashSet<ItemID> const& inspectingItems() const { return inspectingItems_; }
 
   void onDocModified() override;
   void onGraphModified() override;
@@ -414,7 +414,7 @@ struct Shortcut
   ModKey  mod = ModKey::NONE;
 
   static Shortcut parse(String shortcutStr);
-  static String   describ(Shortcut shortcut);
+  static String   describe(Shortcut shortcut);
   static bool     check(Shortcut const& shortcut);
 };
 
@@ -457,10 +457,10 @@ public:
     }
     virtual ~Command() {}
 
-    auto const& name() const { return name_; }
-    auto const& description() const { return description_; }
-    auto const& view() const { return view_; }
-    auto const& shortcut() const { return shortcut_; }
+    String const& name() const { return name_; }
+    String const& description() const { return description_; }
+    String const& view() const { return view_; }
+    Shortcut const& shortcut() const { return shortcut_; }
     bool        hiddenInMenu() const { return hiddenInMenu_; }
     bool        mayModifyGraph() const { return mayModifyGraph_; }
     void        setMayModifyGraph(bool m) { mayModifyGraph_ = m; }
@@ -515,15 +515,17 @@ public:
   void draw(NetworkView* view);
 
 public:
-  auto const& commands() const { return commands_; }
+  Vector<CommandPtr> const& commands() const { return commands_; }
   Command&    add(Command*&& cmd) { commands_.emplace_back(cmd); return *commands_.back(); }
   Command&    add(CommandPtr cmd) { commands_.push_back(std::move(cmd)); return *commands_.back(); }
   bool        remove(String const& name)
   {
-    return commands_.end() ==
-           std::remove_if(commands_.begin(), commands_.end(), [&name](CommandPtr const& cmd) {
-             return cmd->name() == name;
-           });
+    auto it = std::remove_if(commands_.begin(), commands_.end(), [&name](CommandPtr const& cmd) {
+      return cmd->name() == name;
+    });
+    bool found = it != commands_.end();
+    commands_.erase(it, commands_.end());
+    return found;
   }
 
 protected:
@@ -566,9 +568,9 @@ protected:
   ViewFactoryPtr      viewFactory_;
   CommandManager      commandManager_;
 
-  std::function<NodeGraphDocPtr(NodeFactoryPtr, GraphItemFactory const*)> docFactory_
-    = [](NodeFactoryPtr nodeFactory, GraphItemFactory const* itemFactory) {
-        return std::make_shared<NodeGraphDoc>(nodeFactory, itemFactory);
+  std::function<NodeGraphDocPtr(NodeFactoryPtr, GraphItemFactoryPtr)> docFactory_
+    = [](NodeFactoryPtr nodeFactory, GraphItemFactoryPtr itemFactory) {
+        return std::make_shared<NodeGraphDoc>(nodeFactory, std::move(itemFactory));
     };
 
   GraphEventHub             eventHub_;
@@ -576,7 +578,7 @@ protected:
   void removeView(ViewPtr view);
 
 public:
-  auto const& views() const { return views_; }
+  HashSet<ViewPtr> const& views() const { return views_; }
 
   void setFileExt(String ext) { fileExt_ = ext; }
   void setItemFactory(GraphItemFactoryPtr factory) { itemFactory_ = std::move(factory); }
@@ -588,27 +590,27 @@ public:
   std::enable_if_t<std::is_base_of_v<NodeGraphDoc, T>, void>
   setDocType()
   {
-    docFactory_ = [](NodeFactoryPtr nodeFactory, GraphItemFactory const* itemFactory)->NodeGraphDocPtr {
-      return std::make_shared<T>(nodeFactory, itemFactory);
+    docFactory_ = [](NodeFactoryPtr nodeFactory, GraphItemFactoryPtr itemFactory)->NodeGraphDocPtr {
+      return std::make_shared<T>(nodeFactory, std::move(itemFactory));
     };
   }
-  void setDocFactory(std::function<NodeGraphDocPtr(NodeFactoryPtr, GraphItemFactory const*)> factory)
+  void setDocFactory(std::function<NodeGraphDocPtr(NodeFactoryPtr, GraphItemFactoryPtr)> factory)
   {
     docFactory_ = std::move(factory);
   }
   void setContextMenus(ContextMenuEntriesPtr menus) { contextMenuEntries_ = menus; }
 
-  auto  contextMenus() const { return contextMenuEntries_; }
-  auto  itemFactory()       { return itemFactory_.get(); }
-  auto  itemFactory() const { return itemFactory_.get(); }
-  auto  viewFactory()       { return viewFactory_; }
-  auto  viewFactory() const { return viewFactory_; }
-  auto  nodeFactory()       { return nodeFactory_; }
-  auto  nodeFactory() const { return nodeFactory_; }
-  auto& commandManager() { return commandManager_; }
+  ContextMenuEntriesPtr contextMenus() const { return contextMenuEntries_; }
+  GraphItemFactory*     itemFactory()       { return itemFactory_.get(); }
+  GraphItemFactory const* itemFactory() const { return itemFactory_.get(); }
+  ViewFactoryPtr        viewFactory()       { return viewFactory_; }
+  ViewFactoryPtr        viewFactory() const { return viewFactory_; }
+  NodeFactoryPtr        nodeFactory()       { return nodeFactory_; }
+  NodeFactoryPtr        nodeFactory() const { return nodeFactory_; }
+  CommandManager&       commandManager() { return commandManager_; }
 
   void notifyGraphModified(Graph* graph);
-  void boardcastViewEvent(GraphView* view, StringView eventType);
+  void broadcastViewEvent(GraphView* view, StringView eventType);
 
   bool closeView(ViewPtr view, bool confirmIfNotSaved = true);
   bool agreeToQuit() const; // if no doc is dirty

@@ -384,7 +384,7 @@ PyImGuiNodeGraphEditor::PyImGuiNodeGraphEditor(py::object docFactory, py::object
   pyNodeFactory(nodeFactory),
   pyItemFactory(itemFactory)
 {
-  setDocFactory([this](nged::NodeFactoryPtr nodeFactory, nged::GraphItemFactory const* itemFactory)->nged::NodeGraphDocPtr{
+  setDocFactory([this](nged::NodeFactoryPtr nodeFactory, nged::GraphItemFactoryPtr itemFactory)->nged::NodeGraphDocPtr{
     auto pydoc = pyDocFactory(nodeFactory, itemFactory);
     if (!pydoc) return nullptr;
     auto docptr = py::cast<nged::NodeGraphDocPtr>(pydoc);
@@ -1363,8 +1363,8 @@ PYBIND11_MODULE(ngpy, m) {
 
   // Document {{{
   pydoc
-    .def(py::init([](nged::NodeFactoryPtr nodeFactory, nged::GraphItemFactory const* itemFactory){
-      return std::make_shared<PyNodeGraphDoc>(nodeFactory, itemFactory);
+    .def(py::init([](nged::NodeFactoryPtr nodeFactory, nged::GraphItemFactoryPtr itemFactory){
+      return std::make_shared<PyNodeGraphDoc>(nodeFactory, std::move(itemFactory));
     }))
     .def("filterFileInput", &nged::NodeGraphDoc::filterFileInput)
     .def("filterFileOutput", &nged::NodeGraphDoc::filterFileOutput)
@@ -1429,7 +1429,7 @@ PYBIND11_MODULE(ngpy, m) {
       }
       return result;
     })
-    .def_property_readonly("solySelectedNode", &nged::NetworkView::solySelectedNode)
+    .def_property_readonly("solelySelectedNode", &nged::NetworkView::solelySelectedNode)
     .def("setSelectedItems", [](nged::NetworkView* view, py::object items){
       nged::HashSet<nged::ItemID> ids;
       for (auto item: items) {

@@ -2005,8 +2005,8 @@ size_t NodeGraphDocHistory::memoryBytesUsed() const
 // }}} History
 
 // NodeGraphDoc {{{
-NodeGraphDoc::NodeGraphDoc(NodeFactoryPtr nodeFactory, GraphItemFactory const* itemFactory)
-    : history_(this), nodeFactory_(nodeFactory), itemFactory_(itemFactory)
+NodeGraphDoc::NodeGraphDoc(NodeFactoryPtr nodeFactory, GraphItemFactoryPtr itemFactory)
+    : history_(this), nodeFactory_(nodeFactory), itemFactory_(std::move(itemFactory))
 {
   root_ = nullptr;
 }
@@ -2113,8 +2113,7 @@ bool NodeGraphDoc::saveTo(String path)
 
 void NodeGraphDoc::notifyGraphModified(Graph* graph)
 {
-  if (graphModifiedNotifier_)
-    graphModifiedNotifier_(graph);
+  onGraphModified.emit(graph);
 }
 // }}} NodeGraphDoc
 

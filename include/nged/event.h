@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 #include <functional>
 #include <vector>
 #include <algorithm>
@@ -14,9 +15,10 @@ public:
     using Slot = std::function<void(Args...)>;
     
     EventHandle connect(Slot slot) {
-        static EventHandle nextHandle = 0;
-        slots_.emplace_back(++nextHandle, std::move(slot));
-        return nextHandle;
+        static std::atomic<EventHandle> nextHandle{0};
+        auto handle = ++nextHandle;
+        slots_.emplace_back(handle, std::move(slot));
+        return handle;
     }
 
     void disconnect(EventHandle handle) {
@@ -54,9 +56,10 @@ public:
     using Handler = std::function<bool(Args...)>;
 
     EventHandle connect(Handler handler) {
-        static EventHandle nextHandle = 0;
-        handlers_.emplace_back(++nextHandle, std::move(handler));
-        return nextHandle;
+        static std::atomic<EventHandle> nextHandle{0};
+        auto handle = ++nextHandle;
+        handlers_.emplace_back(handle, std::move(handler));
+        return handle;
     }
 
     void disconnect(EventHandle handle) {

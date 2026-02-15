@@ -79,7 +79,7 @@ static inline s7_pointer extractOneArgMaybeOptional(s7_scheme* sc, char const* c
   }
 }
 
-static inline s7_pointer extractArgs_(s7_scheme* sc, char const* caller, s7_pointer args, int ntharg, s7_pointer currentArg)
+static inline s7_pointer extractArgs_(s7_scheme* sc, char const* caller, s7_pointer args, int /*ntharg*/, s7_pointer currentArg)
 {
   if (currentArg!=s7_nil(sc)) {
     return s7_wrong_number_of_args_error(sc, caller, args);
@@ -357,7 +357,7 @@ static s7_pointer cpp_format_time(s7_scheme* sc, s7_pointer args)
     return s7_wrong_type_arg_error(sc, "format-time", 2, args, "should be one of 'local or 'utc");
 
   char buf[128] = { 0 };
-  auto sz = strftime(buf, sizeof(buf), optfmt.value.c_str(), tm);
+  strftime(buf, sizeof(buf), optfmt.value.c_str(), tm);
   return s7_make_string(sc, buf);
 }
 
