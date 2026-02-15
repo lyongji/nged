@@ -70,4 +70,21 @@ if(NOT PYTHON_EXECUTABLE STREQUAL "no")
         LIBRARY DESTINATION nged COMPONENT nged_python
         RUNTIME DESTINATION nged COMPONENT nged_python
     )
+
+    # Generate stubs after build
+    # We need to run stubgen on the built module.
+    # Since ngpy is now a single module (not a package), we point PYTHONPATH to the build dir.
+    # Note: We use a custom command that runs *after* the build.
+    add_custom_command(TARGET ngpy POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}" "${Python_EXECUTABLE}" -m pybind11_stubgen ngpy --output-dir "${CMAKE_CURRENT_BINARY_DIR}" --root-suffix "" --ignore-all-errors
+        COMMENT "Generating Python stubs for ngpy"
+        VERBATIM
+    )
+
+    # Install the generated stubs
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ngpy.pyi"
+        DESTINATION nged
+        COMPONENT nged_python
+        OPTIONAL # In case generation fails (though it shouldn't)
+    )
 endif()

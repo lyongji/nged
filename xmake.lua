@@ -430,3 +430,48 @@ target('ngs7')
     add_files('examples/ngs7/icon.rc')
   end
   add_includedirs('.', 'deps/boxer/include', 'deps/imgui', 'deps/nlohmann', 'deps/spdlog/include', 'deps/subprocess.h')
+
+task('pytest')
+  set_menu({
+    usage = "xmake pytest",
+    description = "Run python tests with the built extension",
+    options = {}
+  })
+  on_run(function ()
+    import("core.project.project")
+    import("core.project.config")
+    import("lib.detect.find_tool")
+    
+    -- Load the project configuration (from .xmake/...)
+    config.load()
+    
+    -- Ensure ngpy is built
+    os.exec("xmake build ngpy")
+    
+    -- Load targets now that config is loaded
+    project.load_targets()
+    local target = project.target("ngpy")
+    
+    local python = get_config("python")
+    if not python or python == "auto" or python == "no" then
+        local tool = find_tool("python3") or find_tool("python")
+        if tool then python = tool.program end
+    end
+    if not python then python = "python3" end
+    
+    -- Now target:targetfile() should be correct
+    local targetfile = target:targetfile()
+    print("Built extension at: " .. targetfile)
+    
+    -- Copy to nged/ to ensure it's importable as 'nged.ngpy'
+    local dest = path.join(os.projectdir(), "nged", path.filename(targetfile))
+    print("Copying to " .. dest .. "...")
+    os.cp(targetfile, dest)
+    
+    -- Setup environment
+    local envs = {}
+    envs.PYTHONPATH = os.projectdir()
+    
+    print("Running tests/pytest.py...")
+    os.runv(python, {'tests/pytest.py'}, {envs = envs})
+  end)

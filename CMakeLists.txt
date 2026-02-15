@@ -88,22 +88,27 @@ endif()
 # Subdirectories
 add_subdirectory(deps)
 add_subdirectory(src)
-add_subdirectory(examples)
-add_subdirectory(tests)
+
+if(NOT SKBUILD)
+    add_subdirectory(examples)
+    add_subdirectory(tests)
+endif()
 
 # Python bindings
-if(NOT PYTHON_EXECUTABLE STREQUAL "no")
+if(SKBUILD OR NOT PYTHON_EXECUTABLE STREQUAL "no")
     add_subdirectory(python)
 endif()
 
-# Install configuration
-install(DIRECTORY include/
-    DESTINATION include
-    FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
-)
+# Install configuration (skip for Python wheel builds)
+if(NOT SKBUILD)
+    install(DIRECTORY include/
+        DESTINATION include
+        FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+    )
 
-install(TARGETS nged ngdoc entry
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-    RUNTIME DESTINATION bin
-)
+    install(TARGETS nged ngdoc entry
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin
+    )
+endif()

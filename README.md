@@ -137,22 +137,53 @@ With this, it's very easy to customize parameter interface on each node, and it 
 
 ### To build:
 
-
-```
+```bash
 > xmake
 ```
 
-to build with python:
+### Python Bindings & Tests
 
-```
-> python setup.py build
+There are two ways to build the Python bindings:
+
+#### 1. Installation (Recommended for Users)
+
+If you just want to install the package (with automatic type stub generation via CMake):
+
+```bash
+> pip install .
 ```
 
-or
+#### 2. Development & Testing (Recommended for Contributors)
 
+For rapid iteration and testing without reinstalling, use `xmake`:
+
+```bash
+# Build and run python tests
+> xmake pytest
 ```
-> python -m pip install .
+
+Note: `xmake pytest` automatically builds the `ngpy` extension, copies it to the `nged/` directory, and runs `tests/pytest.py` with the correct environment.
+
+To run tests manually with xmake artifacts:
+
+```bash
+> xmake build ngpy
+# Copy the built extension (e.g., ngpy.cpython-312-darwin.so) to nged/
+> cp build/macosx/arm64/release/ngpy.*.so nged/
+> PYTHONPATH=. python3 tests/pytest.py
 ```
+
+### Type Stubs
+
+If installed via `pip install .`, type stubs (`.pyi`) are generated and installed automatically.
+
+If using `xmake`, you can generate them manually for better IDE support:
+
+```bash
+> PYTHONPATH=. python3 scripts/build_stubs.py
+```
+
+This will generate `nged/ngpy.pyi` containing type definitions for all bound classes.
 
 ### Options:
 
