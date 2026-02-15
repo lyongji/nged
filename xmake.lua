@@ -28,12 +28,14 @@ end
 option('backend')
   if is_host('windows') then
     set_default('dx11')
+  elseif is_host('macosx') then
+    set_default('metal')
   else
     set_default('gl2')
   end
-  set_description('renderer backend, default to dx11 on windows, otherwise default to gl2')
+  set_description('renderer backend, default to dx11 on windows, metal on macos, otherwise gl2')
   set_showmenu(true)
-  set_values('dx11', 'dx12', 'vulkan', 'gl2', 'gl3')
+  set_values('dx11', 'dx12', 'vulkan', 'gl2', 'gl3', 'metal')
 option_end()
 local backend = get_config('backend')
 if is_plat('windows') and (backend=='vulkan' or backend=='gl2' or backend=='gl3') then
@@ -55,6 +57,8 @@ elseif backend=='gl2' then
   add_defines('NGED_BACKEND_GL2')
 elseif backend=='gl3' then
   add_defines('NGED_BACKEND_GL3')
+elseif backend=='metal' then
+  add_defines('NGED_BACKEND_METAL')
 end
 
 option('python')
@@ -268,6 +272,8 @@ target('imgui')
     add_files('deps/imgui/backends/imgui_impl_glfw.cpp', 'deps/imgui/backends/imgui_impl_opengl2.cpp')
   elseif backend=='gl3' then
     add_files('deps/imgui/backends/imgui_impl_glfw.cpp', 'deps/imgui/backends/imgui_impl_opengl3.cpp')
+  elseif backend=='metal' then
+    add_files('deps/imgui/backends/imgui_impl_glfw.cpp', 'deps/imgui/backends/imgui_impl_metal.mm')
   end
   if is_plat('windows') or is_plat('msys') or is_plat('mingw') then
     add_links('ole32', 'uuid', 'gdi32', 'comctl32', 'dwmapi')
@@ -280,7 +286,11 @@ target('imgui')
   else
     add_links('glfw', 'dl', 'pthread')
     if is_plat('macosx') then
-      add_frameworks('OpenGL')
+      if backend=='metal' then
+        add_frameworks('Metal', 'QuartzCore')
+      else
+        add_frameworks('OpenGL')
+      end
     else
       add_links('GL')
     end
@@ -408,6 +418,9 @@ target('entry')
   elseif backend=='gl3' then
     add_files('src/entry/gl3_main.cpp')
     add_files('src/entry/gl_texture.cpp')
+  elseif backend=='metal' then
+    add_files('src/entry/metal_main.mm')
+    add_files('src/entry/metal_texture.mm')
   end
   if is_plat('windows') then
     add_links('ws2_32', 'advapi32', 'gdi32', 'shell32', 'version')
@@ -423,6 +436,9 @@ target('entry')
 
   if is_plat('macosx') then
     add_frameworks('AppKit', 'IOKit', 'QuartzCore')
+    if backend=='metal' then
+      add_frameworks('Metal', 'Foundation')
+    end
   end
 
 target('demo')
