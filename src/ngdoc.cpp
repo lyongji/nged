@@ -271,6 +271,16 @@ void Node::resize(float width, float height, float varPinWidth, float varMarginW
   }
 }
 
+bool Node::rename(String const& desired, String& accepted)
+{
+  String oldName = name_;
+  name_ = accepted = desired;
+  if (parent() && parent()->docRoot()) {
+    parent()->docRoot()->notifyNodeRenamed(this, oldName, name_);
+  }
+  return true;
+}
+
 bool Node::serialize(Json& json) const
 {
   json["type"] = type_;

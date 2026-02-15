@@ -44,41 +44,185 @@ elseif backend=='gl3' then
 end
 
 option('python')
-  set_description('python executable path, or "no" if python binding is not needed')
+  set_description('python executable path, or "no" if python binding is not needed, or "auto"')
   set_showmenu(true)
-  set_default('no')
+  set_default('auto')
 option_end()
 
 option('pyextension_fullpath')
-option('pyincludedirs')
-option('pylibdirs')
-option('pylib')
+  set_default('')
+  set_showmenu(true)
+option_end()
+
+rule('parm_bin2c')
+  set_extensions('.lua')
+  on_load(function (target) 
+    target:add('includedirs', target:autogendir())
+  end)
+  on_build_file(function (target, sourcefile, opt)
+    import("core.project.depend")
+    import("lib.detect.find_tool")
+    local python = get_config("python")
+    if not python or python == "auto" or python == "no" then
+      local tool = find_tool("python3") or find_tool("python")
+      if tool then python = tool.program end
+    end
+    if not python then python = "python3" end
+    
+    local bin2c = path.join(os.projectdir(), "python/bin2c.py")
+    local headerfile = path.join(target:autogendir(), path.filename(sourcefile) .. ".h")
+    
+    -- ensure output dir exists
+    if not os.isdir(path.directory(headerfile)) then
+      os.mkdir(path.directory(headerfile))
+    end
+    
+    -- depend.on_changed(function ()
+      os.vrunv(python, {bin2c, sourcefile, headerfile})
+    -- end, {files = {sourcefile, bin2c}})
+  end)
+rule_end()
+
+rule('python_config')
+  on_load(function (target)
+    import("lib.detect.find_package")
+    import("lib.detect.find_tool")
+    
+    local pkg = find_package("python", {version = "3"})
+    if pkg then
+      print("Found python via find_package")
+      target:add("includedirs", pkg.includedirs)
+      target:add("linkdirs", pkg.linkdirs)
+      target:add("links", pkg.links)
+      return
+    end
+    
+    print("Warning: Python 3 not found via find_package. Trying manual detection...")
+    local python = get_config("python")
+    if not python or python == "auto" or python == "no" then
+      local tool = find_tool("python3") or find_tool("python")
+      if tool then python = tool.program end
+    end
+    
+    if python then
+      print("Using python executable: " .. python)
+      try
+      {
+        function()
+          local inc = os.iorunv(python, {"-c", "import sysconfig; print(sysconfig.get_path('include'), end='')"})
+          if inc then
+            inc = inc:trim()
+            print("Python include: " .. inc)
+            target:add("includedirs", inc)
+          end
+          if is_plat("windows") then
+             local libdir = os.iorunv(python, {"-c", "import sysconfig; print(sysconfig.get_config_var('LIBDIR'), end='')"})
+             if libdir then target:add("linkdirs", libdir:trim()) end
+          end
+        end
+      }
+      catch
+      {
+        function(e)
+          print("Error detecting python paths: " .. tostring(e))
+        end
+      }
+    end
+  end)
+rule_end()
+
+if get_config('python') ~= 'no' then
+  target('parmscript')
+    set_kind('static')
+    add_cxflags('-fPIC')
+    add_deps('lua', 'imgui', 'nfd')
+    add_includedirs('deps/lua', 'deps/sol2/include', 'deps/nlohmann')
+    add_includedirs('deps/pybind11/include')
+    add_files('deps/parmscript/*.cpp')
+    add_files('deps/parmscript/parmexpr.lua', {rule='parm_bin2c'})
+    add_rules('python_config')
+    on_load(function(target)
+        target:add("includedirs", target:autogendir())
+    end)
+
+  target('ngpy')
+    set_kind('shared')
+    add_headerfiles('include/nged/ngpy.h', 'include/nged/pybind11_imgui.h')
+    add_files('src/ngpy.cpp', 'src/pybind11_imgui.cpp')
+    add_deps('nged', 'entry', 'parmscript', 'lua')
+    add_includedirs('include', 'deps/boxer/include', 'deps/imgui', 'deps/nlohmann', 'deps/spdlog/include', 'deps/parallel_hashmap/parallel_hashmap', 'deps/subprocess.h', 'deps/parmscript')
+    add_includedirs('deps/pybind11/include')
+    add_cxflags('/bigobj', {tools='cl'})
+
+    add_rules('python_config')
+
+    on_load(function (target)
+        import("lib.detect.find_tool")
+        local python = get_config("python")
+        if not python or python == "auto" or python == "no" then
+            local tool = find_tool("python3") or find_tool("python")
+            if tool then python = tool.program end
+        end
+        if not python then python = "python3" end
+
+        local suffix
+        try {
+            function()
+                suffix = os.iorunv(python, {"-c", "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX') or '', end='')"})
+            end
+        }
+
+        if suffix and #suffix > 0 then
+            target:set("filename", "ngpy" .. suffix:trim())
+        else
+            if is_plat('windows') then
+                target:set("filename", "ngpy.pyd")
+            else
+                target:set("filename", "ngpy.so")
+            end
+        end
+
+        if is_plat('macosx') then
+            target:add("shflags", "-undefined dynamic_lookup")
+            -- Assume liblua.a is in the same directory as ngpy.so (or static lib output dir)
+            local luapath = path.join(target:targetdir(), "liblua.a")
+            print("DEBUG: on_load adding force_load for: " .. luapath)
+            target:add("ldflags", "-Wl,-force_load," .. luapath)
+            target:add("shflags", "-Wl,-force_load," .. luapath)
+        end
+    end)
+
+    after_build(function(target)
+      local dest = get_config('pyextension_fullpath')
+      if dest and dest ~= "" then
+        os.cp(target:targetfile(), dest)
+      end
+    end)
+    
+    on_run(function(target)
+        import("lib.detect.find_tool")
+        local python = get_config("python")
+        if not python or python == "auto" or python == "no" then
+            local tool = find_tool("python3") or find_tool("python")
+            if tool then python = tool.program end
+        end
+        if not python then python = "python3" end
+        
+        local envs = {}
+        if get_config('pyextension_fullpath') then
+             envs.PYTHONPATH = path.directory(get_config('pyextension_fullpath'))
+        else
+             envs.PYTHONPATH = target:targetdir()
+        end
+        os.runv(python, {'examples/pydemo/main.py'}, {envs = envs})
+    end)
+end
 
 option('vulkan-sdk')
   set_description('vulkan sdk path')
   set_showmenu(true)
   set_default('')
 local vulkan_sdk = get_config('vulkan-sdk')
-
-rule('pythonlib')
-on_config(function(target)
-  for _,p in ipairs(string.split(get_config('pyincludedirs'), path.envsep())) do
-    if os.isdir(p) then
-      target:add('includedirs', p)
-    end
-  end
-  for _,p in ipairs(string.split(get_config('pylibdirs'), path.envsep())) do
-    if os.isdir(p) then
-      target:add('linkdirs', p)
-    end
-  end
-  if is_plat('macosx') then
-    target:add('shflags', '-undefined dynamic_lookup', {force=true})
-  else
-    target:add('links', get_config('pylib'))
-  end
-end)
-rule_end()
 
 target('imgui')
   set_kind('static')
@@ -137,16 +281,17 @@ target('spdlog')
 
 target('nfd')
   set_kind('static')
-  add_includedirs('deps/nativefiledialog/src/include', {public=true})
-  add_headerfiles('deps/nativefiledialog/src/include/*.h')
-  add_files('deps/nativefiledialog/src/nfd_common.c')
+  add_includedirs('deps/nativefiledialog-extended/src/include', {public=true})
+  add_headerfiles('deps/nativefiledialog-extended/src/include/*.h')
   local nfdimp = 'nfd_win.cpp'
   if is_plat('macosx') then
     nfdimp = 'nfd_cocoa.m'
+    add_mxflags("-fno-objc-arc")
+    add_frameworks("UniformTypeIdentifiers")
   elseif is_plat('linux') then
-    nfdimp = 'nfd_zenity.c'
+    nfdimp = 'nfd_gtk.cpp'
   end
-  add_files('deps/nativefiledialog/src/'..nfdimp)
+  add_files('deps/nativefiledialog-extended/src/'..nfdimp)
   if is_plat('windows') or is_plat('msys') then
     add_links('ole32', 'uuid', 'gdi32', 'comctl32')
   end
@@ -157,6 +302,7 @@ target('boxer')
   add_headerfiles('deps/boxer/include/**')
   if is_plat('macosx') then
     add_files('deps/boxer/src/boxer_osx.mm')
+    add_mxflags("-fno-objc-arc")
   elseif is_plat('linux') then
     add_files('deps/boxer/src/boxer_zenity.cpp')
   else
@@ -221,8 +367,10 @@ target('tests')
 
 target('lua')
   set_kind('static')
+  add_cxflags('-fPIC')
   add_includedirs('deps/lua')
   add_files('deps/lua/*.c|lua.c|luac.c|onelua.c')
+  add_defines("LUA_COMPAT_5_3") -- Try adding compatibility flags if needed
 
 target('entry')
   set_kind('static')
@@ -282,35 +430,3 @@ target('ngs7')
     add_files('examples/ngs7/icon.rc')
   end
   add_includedirs('.', 'deps/boxer/include', 'deps/imgui', 'deps/nlohmann', 'deps/spdlog/include', 'deps/subprocess.h')
-
-if get_config('python') and get_config('python')~='no' then
-  target('parmscript')
-    add_rules('pythonlib')
-    set_kind('static')
-    add_deps('lua', 'imgui', 'nfd')
-    add_includedirs('deps/lua', 'deps/sol2/include', 'deps/nlohmann')
-    add_includedirs('deps/pybind11/include')
-    add_files('deps/parmscript/*.cpp')
-    add_files('deps/parmscript/parmexpr.lua', {rule='utils.bin2c'})
-
-  target('ngpy')
-    add_rules('pythonlib')
-    set_kind('shared')
-    add_headerfiles('include/nged/ngpy.h', 'include/nged/pybind11_imgui.h')
-    add_files('src/ngpy.cpp', 'src/pybind11_imgui.cpp')
-    add_deps('nged', 'entry', 'parmscript')
-    add_includedirs('include', 'deps/boxer/include', 'deps/imgui', 'deps/nlohmann', 'deps/spdlog/include', 'deps/parallel_hashmap/parallel_hashmap', 'deps/subprocess.h', 'deps/parmscript')
-    add_includedirs('deps/pybind11/include')
-    add_cxflags('/bigobj', {tools='cl'})
-
-    after_build(function(target)
-      os.cp(target:targetfile(), get_config('pyextension_fullpath'))
-    end)
-    if get_config('python') ~= '' then
-      add_runenvs('PYTHONPATH', path.directory(get_config('pyextension_fullpath')))
-      on_run(function(target)
-        os.run('%s %s', get_config('python'), 'examples/pydemo/main.py')
-      end)
-    end
-end -- python enabled
-

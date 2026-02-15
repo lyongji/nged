@@ -3,7 +3,7 @@
 #include "gmath.h"
 #include "utils.h"
 #include <nlohmann/json_fwd.hpp>
-#include <spdlog/fmt/fmt.h> // TODO: maybe use std::format
+#include <fmt/format.h> // TODO: maybe use std::format
 #include <uuid.h>
 #include <phmap.h>
 
@@ -529,11 +529,7 @@ public:
   /// if `desired` is not acceptable but the renaming can be done nevertheless, `accepted` should
   /// be set to the new accepted name if renaming was done, return true otherwise return false, and
   /// the name is unchanged
-  virtual bool rename(String const& desired, String& accepted)
-  {
-    name_ = accepted = desired;
-    return true;
-  }
+  virtual bool rename(String const& desired, String& accepted);
 
   /// resize the node, if `numMaxInputs()<0 and varPinWidth > 0 and varPinWidth > 0`, the width
   /// of this node will be calculated by formula
@@ -1275,6 +1271,7 @@ class NodeGraphDoc : public std::enable_shared_from_this<NodeGraphDoc>
   NodeFactoryPtr          nodeFactory_;
 
   std::function<void(Graph*)> graphModifiedNotifier_;
+  std::function<void(Node*, String const&, String const&)> nodeRenamedNotifier_;
   
 protected:
   GraphPtr       root_ = nullptr;
@@ -1333,7 +1330,15 @@ public:
   {
     graphModifiedNotifier_ = std::move(func);
   }
+  void setNodeRenamedNotifier(std::function<void(Node*, String const&, String const&)> func)
+  {
+    nodeRenamedNotifier_ = std::move(func);
+  }
   void notifyGraphModified(Graph* graph);
+  void notifyNodeRenamed(Node* node, String const& oldName, String const& newName)
+  {
+    if (nodeRenamedNotifier_) nodeRenamedNotifier_(node, oldName, newName);
+  }
 };
 // }}} Doc
 

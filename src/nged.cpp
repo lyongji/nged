@@ -1454,6 +1454,9 @@ NodeGraphEditor::DocPtr NodeGraphEditor::createNewDocAndDefaultViews()
   doc->history().reset(true);
   doc->history().markSaved();
   doc->setModifiedNotifier([this](Graph* g) { notifyGraphModified(g); });
+  doc->setNodeRenamedNotifier([this](Node* node, String const& oldName, String const& newName) {
+      events().onNodeRenamed.emit(node->parent(), node);
+  });
   addView(doc, "network");
   return doc;
 }
@@ -1499,6 +1502,10 @@ NodeGraphEditor::DocPtr NodeGraphEditor::openDoc(StringView path)
 {
   auto doc = docFactory_(nodeFactory_, itemFactory_.get());
   doc->setModifiedNotifier([this](Graph* g) { notifyGraphModified(g); });
+  doc->setNodeRenamedNotifier([this](Node* node, String const& oldName, String const& newName) {
+      spdlog::info("nodeRenamedNotifier lambda called for node {}", node->name());
+      events().onNodeRenamed.emit(node->parent(), node);
+  });
   if (!loadDocInto(path, doc)) {
     return nullptr;
   } else {

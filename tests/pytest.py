@@ -73,6 +73,35 @@ tr = doc.root.traverse([zz.id])
 for i in range(len(tr)):
     print(f'{i}: {tr[i]}')
 
+print('----editor events----')
+# Create editor to listen to events
+from nged import Editor
+import nged.ImGui as imgui
+imgui.CreateContext()
+
+editor = Editor(lambda n,i: Document(n,i), nodeFactory, itemFactory)
+# Create a doc managed by editor so events are wired
+doc_monitored = editor.newDoc() 
+
+event_triggered = False
+def on_node_renamed(graph, node):
+    global event_triggered
+    print(f'Event: Node {node.name} renamed in graph {graph.name}')
+    event_triggered = True
+
+# Connect directly to the event signal!
+editor.events().onNodeRenamed.connect(on_node_renamed)
+
+# Trigger event
+node_m = doc_monitored.root.createNode('dummy')
+print(f'Renaming node {node_m.name}...')
+node_m.rename("newName")
+
+if event_triggered:
+    print("SUCCESS: Event callback triggered via Signal connection")
+else:
+    print("FAILURE: Event callback NOT triggered via Signal connection")
+
 print('----clean up---')
 doc = None
 xx = None

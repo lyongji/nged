@@ -1466,6 +1466,10 @@ NodeGraphDocPtr ImGuiNodeGraphEditor::createNewDocAndDefaultViews()
   doc->history().reset(true);
   doc->history().markSaved();
   doc->setModifiedNotifier([this](Graph* g){notifyGraphModified(g);});
+  doc->setNodeRenamedNotifier([this](Node* node, String const& oldName, String const& newName) {
+      events().onNodeRenamed.emit(node->parent(), node);
+  });
+
   bool emptyBefore = views().size() == 0 || views().size() == pendingRemoveViews_.size();
 
   if (!emptyBefore) {

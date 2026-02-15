@@ -809,10 +809,84 @@ void PyApp::init()
 
 // --------------------------------------- The Python Module --------------------------------------------------
 
+template<typename... Args>
+void bindSignal(py::module& m, const char* name) {
+    py::class_<nged::Signal<Args...>>(m, name)
+        .def("emit", [](nged::Signal<Args...>& self, Args... args) {
+            self.emit(std::forward<Args>(args)...);
+        })
+        .def("connect", [](nged::Signal<Args...>& self, std::function<void(Args...)> slot) {
+             self.connect(slot); 
+        });
+}
+
+template<typename... Args>
+void bindRequest(py::module& m, const char* name) {
+    py::class_<nged::Request<Args...>>(m, name)
+        .def("invoke", [](nged::Request<Args...>& self, Args... args) -> bool {
+            return self.invoke(std::forward<Args>(args)...);
+        })
+        .def("connect", [](nged::Request<Args...>& self, std::function<bool(Args...)> slot) {
+             self.connect(slot);
+        });
+}
+
 PYBIND11_MODULE(ngpy, m) {
   m.doc() = "NodeGraph Editor";
 
   parmscript::addExtensions();
+
+  // InputConnection & OutputConnection
+  py::class_<nged::InputConnection>(m, "InputConnection")
+    .def_readwrite("sourceItem", &nged::InputConnection::sourceItem)
+    .def_readwrite("sourcePort", &nged::InputConnection::sourcePort)
+    .def("__repr__", [](nged::InputConnection const& c) {
+      return fmt::format("InputConnection({}:{})", c.sourceItem.value(), c.sourcePort);
+    });
+
+  py::class_<nged::OutputConnection>(m, "OutputConnection")
+    .def_readwrite("destItem", &nged::OutputConnection::destItem)
+    .def_readwrite("destPort", &nged::OutputConnection::destPort)
+    .def("__repr__", [](nged::OutputConnection const& c) {
+      return fmt::format("OutputConnection({}:{})", c.destItem.value(), c.destPort);
+    });
+
+  // Signals and Requests
+  // bindSignal<nged::InspectorView*, nged::GraphItem**, size_t>(m, "Signal_InspectorView_Items"); // GraphItem** issue
+  // bindRequest<bool, nged::Graph*, nged::GraphItem*, nged::GraphItem**>(m, "Request_AddItem"); // GraphItem** issue
+  bindSignal<nged::Graph*, nged::GraphItem*>(m, "Signal_Graph_Item");
+  bindRequest<nged::Graph*, nged::GraphItem*>(m, "Request_RemoveItem"); 
+  bindRequest<nged::Graph*, nged::Node*>(m, "Request_RenameNode");
+  bindSignal<nged::Graph*, nged::Node*>(m, "Signal_Graph_Node");
+  bindSignal<nged::GraphView*>(m, "Signal_GraphView");
+  bindSignal<nged::NetworkView*, nged::GraphItem*, int>(m, "Signal_NetworkView_Item_Int");
+  bindSignal<nged::NetworkView*, nged::GraphItem*>(m, "Signal_NetworkView_Item");
+  bindSignal<nged::NetworkView*>(m, "Signal_NetworkView");
+  bindRequest<nged::Graph*, nged::InputConnection, nged::OutputConnection>(m, "Request_LinkSet");
+  bindSignal<nged::Link*>(m, "Signal_Link");
+  // bindSignal<nged::Graph*, nged::GraphItem**, size_t>(m, "Signal_Graph_Items"); // GraphItem** issue
+
+  // GraphEventHub
+  py::class_<nged::GraphEventHub>(m, "GraphEventHub")
+      //.def_readonly("onInspect", &nged::GraphEventHub::onInspect)
+      //.def_readonly("requestAddItem", &nged::GraphEventHub::requestAddItem)
+      .def_readonly("onItemAdded", &nged::GraphEventHub::onItemAdded)
+      .def_readonly("requestRemoveItem", &nged::GraphEventHub::requestRemoveItem)
+      .def_readonly("requestRenameNode", &nged::GraphEventHub::requestRenameNode)
+      .def_readonly("onNodeRenamed", &nged::GraphEventHub::onNodeRenamed)
+      .def_readonly("beforeViewUpdate", &nged::GraphEventHub::beforeViewUpdate)
+      .def_readonly("afterViewUpdate", &nged::GraphEventHub::afterViewUpdate)
+      .def_readonly("beforeViewDraw", &nged::GraphEventHub::beforeViewDraw)
+      .def_readonly("afterViewDraw", &nged::GraphEventHub::afterViewDraw)
+      .def_readonly("onItemClicked", &nged::GraphEventHub::onItemClicked)
+      .def_readonly("onItemDoubleClicked", &nged::GraphEventHub::onItemDoubleClicked)
+      .def_readonly("onItemHovered", &nged::GraphEventHub::onItemHovered)
+      .def_readonly("onSelectionChanged", &nged::GraphEventHub::onSelectionChanged)
+      .def_readonly("requestLinkSet", &nged::GraphEventHub::requestLinkSet)
+      .def_readonly("onLinkSet", &nged::GraphEventHub::onLinkSet)
+      .def_readonly("onLinkRemoved", &nged::GraphEventHub::onLinkRemoved)
+      //.def_readonly("afterPaste", &nged::GraphEventHub::afterPaste)
+      .def_readonly("onViewRemoved", &nged::GraphEventHub::onViewRemoved);
 
   // Vec2 {{{
   py::class_<nged::Vec2>(m, "Vec2")
@@ -1517,6 +1591,7 @@ PYBIND11_MODULE(ngpy, m) {
     .def_property_readonly("hiddenInMenu", &nged::CommandManager::Command::hiddenInMenu);
 
   editor
+    .def("events", &nged::NodeGraphEditor::events, py::return_value_policy::reference)
     .def("open", &nged::NodeGraphEditor::openDoc, py::arg("path"))
     .def("save", &nged::NodeGraphEditor::saveDoc, py::arg("doc"))
     .def("saveAs", &nged::NodeGraphEditor::saveDocAs, py::arg("doc"), py::arg("path"))

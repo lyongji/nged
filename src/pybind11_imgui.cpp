@@ -1159,5 +1159,7 @@ void bind_imgui_to_py(py::module& m)
   }, py::arg("label"), py::arg("type"), py::arg("value"), py::arg("min")=0, py::arg("max")=10, py::arg("format")="%.3f", py::arg("flags")=0);
 
   // TODO: VSliderScalar, InputScalarN, ColorEdit3, ColorEdit4, ColorPicker3, ColorPicker3, ColorButton
+  m.def("CreateContext", []() { ImGui::CreateContext(); });
+  m.def("DestroyContext", []() { ImGui::DestroyContext(); });
 
 }

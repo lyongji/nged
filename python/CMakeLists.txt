@@ -40,10 +40,9 @@ if(NOT PYTHON_EXECUTABLE STREQUAL "no")
         ${CMAKE_SOURCE_DIR}/src/pybind11_imgui.cpp
     )
 
-    # Output as a package: ngpy/__init__.pyd
-    set_target_properties(ngpy PROPERTIES OUTPUT_NAME "__init__")
-    set_target_properties(ngpy PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/ngpy")
-    set_target_properties(ngpy PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/ngpy")
+    # Output as a single file: ngpy.suffix.so
+    set_target_properties(ngpy PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+    set_target_properties(ngpy PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 
     target_include_directories(ngpy PRIVATE
         ${CMAKE_SOURCE_DIR}/include
@@ -66,24 +65,9 @@ if(NOT PYTHON_EXECUTABLE STREQUAL "no")
         target_compile_options(ngpy PRIVATE /bigobj)
     endif()
 
-    # Generate stubs after build
-    # PYTHONPATH points to binary dir so 'import ngpy' finds 'ngpy/__init__.pyd'
-    add_custom_command(TARGET ngpy POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}" "${Python_EXECUTABLE}" -m pybind11_stubgen ngpy --output-dir "${CMAKE_CURRENT_BINARY_DIR}" --root-suffix "" --ignore-all-errors
-        COMMENT "Generating Python stubs for ngpy"
-        VERBATIM
-    )
-
-    # Install the Python extension module (to ngpy/__init__.pyd)
+    # Install the Python extension module directly to site-packages/nged
     install(TARGETS ngpy
-        LIBRARY DESTINATION ngpy COMPONENT nged_python
-        RUNTIME DESTINATION ngpy COMPONENT nged_python
-    )
-
-    # Install the generated stubs (merge into ngpy folder)
-    install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/ngpy"
-        DESTINATION .
-        COMPONENT nged_python
-        FILES_MATCHING PATTERN "*.pyi"
+        LIBRARY DESTINATION nged COMPONENT nged_python
+        RUNTIME DESTINATION nged COMPONENT nged_python
     )
 endif()
