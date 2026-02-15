@@ -44,9 +44,17 @@ def build_stubs():
     # Merge ngpy stubs into a single file
     ngpy_stub_dir = os.path.join(stub_pkg, "ngpy")
     if os.path.exists(ngpy_stub_dir) and os.path.isdir(ngpy_stub_dir):
-        merge_stubs(ngpy_stub_dir, os.path.join(stub_pkg, "ngpy.pyi"))
-        # Clean up directory after merging
-        # shutil.rmtree(ngpy_stub_dir) 
+        temp_stub = os.path.join(stub_pkg, "ngpy.pyi")
+        merge_stubs(ngpy_stub_dir, temp_stub)
+        
+        # Copy to source tree
+        source_dest = os.path.join("nged", "ngpy.pyi")
+        shutil.copy(temp_stub, source_dest)
+        print(f"Copied stubs to {source_dest}")
+        
+    # Clean up temporary directory
+    print(f"Cleaning up {output_dir}...")
+    shutil.rmtree(output_dir)
 
 def merge_stubs(stub_dir, output_file):
     print(f"Merging stubs from {stub_dir} into {output_file}...")
@@ -110,11 +118,6 @@ def merge_stubs(stub_dir, output_file):
     with open(output_file, 'w') as f:
         f.writelines(merged_lines)
     print(f"Merged stub created at {output_file}")
-    
-    # Copy to source tree
-    source_dest = os.path.join("nged", "ngpy.pyi")
-    shutil.copy(output_file, source_dest)
-    print(f"Copied stubs to {source_dest}")
 
 if __name__ == "__main__":
     install_stubgen()
