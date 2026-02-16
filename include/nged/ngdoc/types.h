@@ -67,14 +67,16 @@ public:
   size_t   hash() const { return std::hash<uint64_t>()(id_); }
   uint64_t value() const { return id_; }
   uint32_t index() const { return index_; }
+
+  static const ItemID None;
 };
 
-static constexpr ItemID ID_None = {-1u, -1u};
+inline constexpr ItemID ItemID::None = {-1u, -1u};
 
 /// Connection to an output port of source node
 struct InputConnection
 {
-  ItemID sourceItem{ID_None};
+  ItemID sourceItem{ItemID::None};
   sint   sourcePort{-1};
 
   bool operator==(InputConnection const& that) const
@@ -86,7 +88,7 @@ struct InputConnection
 /// Connection to an input port of destiny node
 struct OutputConnection
 {
-  ItemID destItem{ID_None};
+  ItemID destItem{ItemID::None};
   sint   destPort{-1};
 
   bool operator==(OutputConnection const& that) const
@@ -97,7 +99,7 @@ struct OutputConnection
 
 struct NodePin
 {
-  ItemID node  = ID_None;
+  ItemID node  = ItemID::None;
   sint   index = -1;
   enum class Type
   {
@@ -110,9 +112,11 @@ struct NodePin
     return node == that.node && index == that.index && type == that.type;
   }
   bool operator!=(NodePin const& that) const { return !operator==(that); }
+
+  static const NodePin None;
 };
 
-static constexpr NodePin PIN_None = {ID_None, -1, NodePin::Type::None};
+inline constexpr NodePin NodePin::None = {ItemID::None, -1, NodePin::Type::None};
 // }}}
 
 } // }}} namespace nged

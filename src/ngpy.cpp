@@ -941,7 +941,7 @@ PYBIND11_MODULE(ngpy, m) {
 
   // ItemID {{{
   py::class_<nged::ItemID>(m, "ItemID")
-    .def(py::init([]() { return nged::ID_None; }))
+    .def(py::init([]() { return nged::ItemID::None; }))
     .def(py::init<nged::ItemID>())
     .def_property_readonly("value", &nged::ItemID::value)
     .def(py::self == py::self)
@@ -952,7 +952,7 @@ PYBIND11_MODULE(ngpy, m) {
     .def(py::pickle(
           [](nged::ItemID const& id){ return py::int_(id.value()); },
           [](py::int_ v){ return nged::ItemID(v.cast<uint64_t>()); }));
-  m.attr("ID_None") = nged::ID_None;
+  m.attr("idNone") = nged::ItemID::None;
   // }}}
 
   // forward decl

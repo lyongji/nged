@@ -1,4 +1,4 @@
-from nged import Graph, Node, GraphTraverseResult, ItemID, ID_None
+from nged import Graph, Node, GraphTraverseResult, ItemID, idNone
 from nged.msghub import trace, debug, warn, error
 from typing import Optional
 from evaluation import GraphEvaluationContext

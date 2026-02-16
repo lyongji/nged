@@ -1,4 +1,4 @@
-from nged import ItemID, ID_None, GraphTraverseResult
+from nged import ItemID, idNone, GraphTraverseResult
 from nged.msghub import trace, debug, warn, error
 from typing import Optional
 from threading import Thread  # TODO: use multiprocessing instead
@@ -120,7 +120,7 @@ class GraphEvaluationContext:
         self.stateStack = []
         self.ignoredInput = set()
         self.busy = False
-        self.currentNode = ID_None
+        self.currentNode = idNone
         self.evalThread = None
         self.isPreparing = False
 

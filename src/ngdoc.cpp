@@ -253,7 +253,7 @@ void Node::resize(float width, float height, float varPinWidth, float varMarginW
 
   if (numMaxInputs() < 0 && varPinWidth > 0.f && varMarginWidth > 0.f) {
     Vector<Link*> linksIntoThis;
-    if (id() != ID_None && parent()) {
+    if (id() != ItemID::None && parent()) {
       if (Vector<ItemID> links; parent()->linksOnNode(id(), links)) {
         for (auto linkid : links) {
           if (auto* link = parent()->get(linkid)->asLink();
@@ -851,15 +851,15 @@ ItemID Graph::add(GraphItemPtr item)
 {
   if (readonly()) {
     msghub::info("graph is read-only, cannot add any item");
-    return ID_None;
+    return ItemID::None;
   }
-  if (item->id() != ID_None) {
+  if (item->id() != ItemID::None) {
     if (auto ptr = tryGet(item->id()); ptr && ptr == item) {
       msghub::warn("item {} is already there, do not add again");
       return item->id();
     } else {
       msghub::error("item is already added elsewhere, cannot be added again");
-      return ID_None;
+      return ItemID::None;
     }
   }
   auto doc = docRoot();
@@ -885,7 +885,7 @@ NodePtr Graph::createNode(StringView type)
   auto factory = nodeFactory();
   assert(factory);
   auto nodeptr = factory->createNode(this, type);
-  if (nodeptr && add(nodeptr) != ID_None)
+  if (nodeptr && add(nodeptr) != ItemID::None)
     return nodeptr;
   return nullptr;
 }
@@ -898,7 +898,7 @@ GraphItemPtr Graph::get(ItemID id) const
 
 GraphItemPtr Graph::tryGet(ItemID id) const
 {
-  if (id == ID_None)
+  if (id == ItemID::None)
     return nullptr;
   if (items_.find(id) == items_.end())
     return nullptr;
@@ -1850,7 +1850,7 @@ GraphItemPool::GraphItemPool()
 
 ItemID GraphItemPool::add(GraphItemPtr item)
 {
-  ItemID iid = ID_None;
+  ItemID iid = ItemID::None;
   if (!freeList_.empty()) {
     uint32_t index = freeList_.back();
     freeList_.pop_back();

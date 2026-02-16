@@ -391,9 +391,9 @@ void NetworkView::onGraphModified()
   }
   hiddenItems_.swap(validSelection);
   if (!graph()->tryGet(hoveringItem_))
-    hoveringItem_ = ID_None;
+    hoveringItem_ = ItemID::None;
   if (!graph()->tryGet(hoveringPin_.node))
-    hoveringPin_ = PIN_None;
+    hoveringPin_ = NodePin::None;
   for (auto state : states_) {
     if (state->active())
       state->onGraphModified(this);
@@ -412,8 +412,8 @@ void NetworkView::reset(WeakGraphPtr graph)
   hiddenItems_.clear();
   zOrder_.clear();
   highZ_        = 0;
-  hoveringItem_ = ID_None;
-  hoveringPin_  = PIN_None;
+  hoveringItem_ = ItemID::None;
+  hoveringPin_  = NodePin::None;
   GraphView::reset(graph);
   update(0);
   zoomToSelected(0);
@@ -559,9 +559,9 @@ bool NetworkView::pasteFrom(Json const& json)
   for (auto& linkdata : json["links"]) {
     auto& from = linkdata["from"];
     auto& to   = linkdata["to"];
-    auto srcid = utils::get_or(idmap, from["id"], ID_None);
-    auto dstid = utils::get_or(idmap, to["id"], ID_None);
-    if (srcid == ID_None || dstid == ID_None)
+    auto srcid = utils::get_or(idmap, from["id"], ItemID::None);
+    auto dstid = utils::get_or(idmap, to["id"], ItemID::None);
+    if (srcid == ItemID::None || dstid == ItemID::None)
       continue;
     if (!editor()->setLink(graphRawPtr, nullptr,
           srcid, sint(from["port"]), dstid, sint(to["port"]))) {
@@ -1383,7 +1383,7 @@ void NodeGraphEditor::initCommands()
     [](GraphView const* view){
       if (view->kind() != "network") return false;
       auto* nv = static_cast<NetworkView const*>(view);
-      if (nv->hoveringItem() != ID_None) {
+      if (nv->hoveringItem() != ItemID::None) {
         if (auto item = nv->graph()->get(nv->hoveringItem())) {
           if (auto* node = item->asNode())
             if (node->isFlagApplicatable(node->flags() ^ NODEFLAG_BYPASS))
@@ -1699,7 +1699,7 @@ ItemID NodeGraphEditor::addItem(Graph* graph, GraphItemPtr itemptr)
 {
   GraphItem* replacement = nullptr;
   if (!eventHub_.requestAddItem.invoke(graph, itemptr.get(), &replacement))
-    return ID_None;
+    return ItemID::None;
   if (replacement)
     return replacement->id();
   auto id = graph->add(itemptr);
@@ -1772,12 +1772,12 @@ void NodeGraphEditor::removeItems(Graph* graph, HashSet<ItemID> const& items, Ha
           itr = itemsToRemove.find(inconn.sourceItem);
           foundRestorePath = true;
         } else {
-          inconn.sourceItem = ID_None;
+          inconn.sourceItem = ItemID::None;
           foundRestorePath = false;
           break;
         }
       }
-      if (foundRestorePath && inconn.sourceItem != ID_None)
+      if (foundRestorePath && inconn.sourceItem != ItemID::None)
         linksToRestore[pair.first] = inconn;
     }
   }
@@ -1794,8 +1794,8 @@ bool NodeGraphEditor::setLink(Graph* graph, NetworkView* fromView, ItemID source
 {
   if (NodePin errPin;
       fromView &&
-      sourceItem != ID_None &&
-      destItem != ID_None &&
+      sourceItem != ItemID::None &&
+      destItem != ItemID::None &&
       !fromView->graph()->checkLinkIsAllowed(
         sourceItem, sourcePort, destItem, destPort, &errPin)) {
     auto errPos = graph->pinPos(errPin);

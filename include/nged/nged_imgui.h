@@ -222,18 +222,18 @@ public:
     if (view->readonly())
       return false;
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-      if (view->hoveringPin() != PIN_None)
+      if (view->hoveringPin() != NodePin::None)
         return true;
-      if (view->hoveringItem() != ID_None && view->graph()->get(view->hoveringItem())->asLink()) {
+      if (view->hoveringItem() != ItemID::None && view->graph()->get(view->hoveringItem())->asLink()) {
         pendingEnter_  = true;
         pendingLinkID_ = view->hoveringItem();
       } else {
         pendingEnter_  = false;
-        pendingLinkID_ = ID_None;
+        pendingLinkID_ = ItemID::None;
       }
     } else if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
       pendingEnter_  = false;
-      pendingLinkID_ = ID_None;
+      pendingLinkID_ = ItemID::None;
     }
     if (pendingEnter_)
       return ImGui::IsMouseDragging(ImGuiMouseButton_Left);
@@ -250,10 +250,10 @@ public:
   auto dstPin() const { return dstPin_; }
   void clear()
   {
-    srcPin_ = PIN_None;
-    dstPin_ = PIN_None;
+    srcPin_ = NodePin::None;
+    dstPin_ = NodePin::None;
   }
-  bool activate(NodePin source = PIN_None, NodePin dest = PIN_None);
+  bool activate(NodePin source = NodePin::None, NodePin dest = NodePin::None);
 };
 
 class CutLinkState : public NetworkView::NamedInteractionState<CutLinkState>
@@ -359,15 +359,15 @@ public:
 
   auto const& input() const { return input_; }
 
-  bool activate(ItemID src = ID_None)
+  bool activate(ItemID src = ItemID::None)
   {
     if (active())
       return false;
     manualActivated_ = true;
-    if (src != ID_None)
+    if (src != ItemID::None)
       pendingInputLink_ = {src, 0};
     else
-      pendingInputLink_ = {ID_None, -1};
+      pendingInputLink_ = {ItemID::None, -1};
     return true;
   }
   bool activate(InputConnection in, OutputConnection out)

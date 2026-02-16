@@ -93,7 +93,7 @@ TEST_CASE("Graph Creation") {
   doc.makeRoot();
   auto graph = doc.root();
   auto id = graph->add(nged::GraphItemPtr(doc.nodeFactory()->createNode(graph.get(), "null")));
-  CHECK(id != nged::ID_None);
+  CHECK(id != nged::ItemID::None);
   CHECK(graph->get(id)->asNode() != nullptr);
 
   auto nodeptr = graph->createNode("exec");
@@ -226,7 +226,7 @@ TEST_CASE("TypedNode Test") {
   doc.makeRoot();
   auto graph = doc.root();
   auto sumint = graph->createNode("sumint");
-  CHECK(sumint->id() != nged::ID_None);
+  CHECK(sumint->id() != nged::ItemID::None);
   CHECK(graph->get(sumint->id())->asNode() == sumint.get());
 
   auto sumfloat = graph->createNode("sumfloat");
@@ -330,7 +330,7 @@ TEST_CASE("Serialization Round Trip") {
   // Verify connectivity: exec should have an output link to out
   nged::InputConnection inConn;
   CHECK(graph2->getLinkSource(exec2->id(), 0, inConn));
-  REQUIRE(inConn.sourceItem != nged::ID_None);
+  REQUIRE(inConn.sourceItem != nged::ItemID::None);
   auto sourceNode = graph2->get(inConn.sourceItem)->asNode();
   REQUIRE(sourceNode != nullptr);
   CHECK(sourceNode->type() == "null");

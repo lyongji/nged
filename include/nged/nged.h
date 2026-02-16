@@ -228,8 +228,8 @@ protected:
   HashSet<ItemID> selectedItems_   = {};
   HashSet<ItemID> hiddenItems_     = {};
   HashSet<ItemID> hiddenOnceItems_ = {}; // hidden for one frame
-  ItemID          hoveringItem_    = ID_None;
-  NodePin         hoveringPin_     = PIN_None;
+  ItemID          hoveringItem_    = ItemID::None;
+  NodePin         hoveringPin_     = NodePin::None;
 
   size_t                      highZ_ = 0;
   HashMap<ItemID, size_t>     zOrder_;

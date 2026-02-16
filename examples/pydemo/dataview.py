@@ -1,4 +1,4 @@
-from nged import ID_None, Vec2, View, ImGui
+from nged import idNone, Vec2, View, ImGui
 from nged.msghub import *
 from icondef import *
 
@@ -15,7 +15,7 @@ class DataView(View):
     def __init__(self, editor, doc):
         View.__init__(self, editor, None)
         self.title = 'DataView'
-        self.viewingNode = ID_None
+        self.viewingNode = idNone
         self.autoUpdate = False
         self.lockOnNode = False
         self.windowFlags = ImGui.WindowFlags.HorizontalScrollbar
@@ -26,11 +26,11 @@ class DataView(View):
     def onDocModified(self):
         if not self.graph:
             self.lockOnNode = False
-            self.viewingNode = ID_None
+            self.viewingNode = idNone
             return
         if self.lockOnNode and self.graph.doc.getItem(self.viewingNode) is None:
             self.lockOnNode = False
-            self.viewingNode = ID_None
+            self.viewingNode = idNone
 
     def onGraphModified(self):
         pass
@@ -133,7 +133,7 @@ def syncDestinies(editor):
     alldoc = set()
     for view in editor.views():
         if isinstance(view, DataView):
-            if view.viewingNode != ID_None:
+            if view.viewingNode != idNone:
                 alltargets.add(view.viewingNode)
             if view.graph:
                 alldoc.add(view.graph.doc)

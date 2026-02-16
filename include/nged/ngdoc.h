@@ -43,7 +43,7 @@ private:
   friend class GraphItemFactory;
 
   Graph* parent_;
-  ItemID id_        = ID_None;
+  ItemID id_        = ItemID::None;
   UID    uid_       = {};
   UID    sourceUID_ = {}; // the uid read from deserialize(); if not deserialize inplace, sourceUid
                           // will not be equal to uid
@@ -891,7 +891,7 @@ public:
   GraphItemPtr get(ItemID id)
   {
     auto index = id.index();
-    if (id == ID_None)
+    if (id == ItemID::None)
       return nullptr;
     assert(index < items_.size());
     auto itemptr = items_[index];

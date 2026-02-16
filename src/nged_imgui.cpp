@@ -1646,7 +1646,7 @@ bool SelectionState::update(NetworkView* view)
     return false;
   }
 
-  ItemID clickedItem  = ID_None;
+  ItemID clickedItem  = ItemID::None;
   auto   selectionBox = AABB(boxSelectionAnchor_, pos);
   selectedThisFrame_  = confirmedItemSelection_;
   if (selectionBox.width() * selectionBox.height() > 4) {
@@ -1686,12 +1686,12 @@ bool SelectionState::update(NetworkView* view)
     clickedItem = view->hoveringItem();
   }
 
-  if (view->hoveringItem() == ID_None && mouseClicked && isReplacingSelection) {
+  if (view->hoveringItem() == ItemID::None && mouseClicked && isReplacingSelection) {
     // click on blank area deselects all
     confirmedItemSelection_.clear();
     view->setSelectedItems({});
     msghub::debug("selection: deselected all");
-  } else if (clickedItem != ID_None) {
+  } else if (clickedItem != ItemID::None) {
     if (shiftDown_) {
       confirmedItemSelection_.insert(clickedItem);
     } else if (ctrlDown_) {
@@ -1789,8 +1789,8 @@ bool HandleView::update(NetworkView* view)
   auto       s2c          = canvas->screenToCanvas();
   auto       mousepos     = s2c.transformPoint(mouseScreenPos);
   GraphItem* hoveringItem = nullptr;
-  view->setHoveringItem(ID_None);
-  view->setHoveringPin(PIN_None);
+  view->setHoveringItem(ItemID::None);
+  view->setHoveringPin(NodePin::None);
   view->graph()->forEachItem([&mousepos, &hoveringItem, view](GraphItemPtr item) {
     auto biggerBound = item->aabb().expanded(8.f);
     if (biggerBound.contains(mousepos)) {
@@ -1821,7 +1821,7 @@ bool HandleView::update(NetworkView* view)
         }
       }
       if (
-        view->hoveringPin().node == ID_None &&
+        view->hoveringPin().node == ItemID::None &&
         item->hitTest(mousepos) &&
         (hoveringItem == nullptr || view->zCompare(hoveringItem, item.get()) <= 0)) {
         hoveringItem = item.get();
@@ -1839,7 +1839,7 @@ bool HandleView::update(NetworkView* view)
     }
   });
 
-  if (view->hoveringItem() != ID_None) {
+  if (view->hoveringItem() != ItemID::None) {
     auto item = view->graph()->get(view->hoveringItem());
     auto& events = view->editor()->events();
     int button = -1;
@@ -1872,7 +1872,7 @@ bool HandleView::update(NetworkView* view)
   }
 
   if (!panButtonDown_ && buttonDownNow &&
-      (view->hoveringItem() == ID_None ||
+      (view->hoveringItem() == ItemID::None ||
        view->graph()->get(view->hoveringItem())->asGroupBox())) {
     mouseAnchor_ = vec(ImGui::GetMousePos());
     viewAnchor_  = canvas->viewPos();
@@ -1905,7 +1905,7 @@ bool HandleView::update(NetworkView* view)
 
 void HandleView::draw(NetworkView* view)
 {
-  if (auto pin = view->hoveringPin(); pin != PIN_None) {
+  if (auto pin = view->hoveringPin(); pin != NodePin::None) {
     auto* node = view->graph()->get(pin.node)->asNode();
     assert(node);
     Vec2               pos   = view->graph()->pinPos(pin);
@@ -2039,7 +2039,7 @@ bool EditArrow::shouldEnter(NetworkView const* view) const
   if (view->readonly())
     return false;
   return ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
-    view->hoveringItem() != ID_None &&
+    view->hoveringItem() != ItemID::None &&
     dynamic_cast<Arrow*>(view->graph()->get(view->hoveringItem()).get());
 }
 bool EditArrow::shouldExit(NetworkView const* view) const
@@ -2150,7 +2150,7 @@ bool ResizeBoxState::shouldEnter(NetworkView const* view) const
   auto hovering = view->hoveringItem();
   auto graph = view->graph();
   GraphItem* topgroup = nullptr;
-  if (hovering == ID_None) {
+  if (hovering == ItemID::None) {
     for (auto id: graph->items()) {
       if (auto* group = graph->get(id)->asGroupBox()) {
         if (group->aabb().contains(mousepos)) {
@@ -2200,7 +2200,7 @@ bool ResizeBoxState::shouldExit(NetworkView const* view) const
 {
   if (view->readonly())
     return true;
-  if (!view->isFocused() || ImGui::IsMouseReleased(ImGuiMouseButton_Left) || resizingItem_ == ID_None || resizingWhere_ == Nowhere)
+  if (!view->isFocused() || ImGui::IsMouseReleased(ImGuiMouseButton_Left) || resizingItem_ == ItemID::None || resizingWhere_ == Nowhere)
     return true;
   else
     return false;
@@ -2304,7 +2304,7 @@ bool LinkState::activate(NodePin source, NodePin dest)
     return false;
   }
 
-  if (source == PIN_None && dest == PIN_None)
+  if (source == NodePin::None && dest == NodePin::None)
     return false;
 
   srcPin_          = source;
@@ -2318,12 +2318,12 @@ void LinkState::onEnter(NetworkView* view)
 {
   if (manualActivated_) {
     // pass
-  } else if (auto pin = view->hoveringPin(); pin != PIN_None) {
+  } else if (auto pin = view->hoveringPin(); pin != NodePin::None) {
     if (pin.type == NodePin::Type::Out) {
       srcPin_ = view->hoveringPin();
-      dstPin_ = PIN_None;
+      dstPin_ = NodePin::None;
     } else {
-      srcPin_ = PIN_None;
+      srcPin_ = NodePin::None;
       dstPin_ = view->hoveringPin();
     }
   } else {
@@ -2340,12 +2340,12 @@ void LinkState::onEnter(NetworkView* view)
     srcPin_  = {out.sourceItem, out.sourcePort, NodePin::Type::Out};
     dstPin_  = {in.destItem, in.destPort, NodePin::Type::In};
   }
-  hiddenLink_ = ID_None;
-  if (dstPin_ != PIN_None) {
+  hiddenLink_ = ItemID::None;
+  if (dstPin_ != NodePin::None) {
     if (auto link = view->graph()->getLink(dstPin_.node, dstPin_.index))
       hiddenLink_ = link->id();
     else
-      hiddenLink_ = ID_None;
+      hiddenLink_ = ItemID::None;
     view->hideItem(hiddenLink_);
   }
   manualActivated_ = false;
@@ -2359,7 +2359,7 @@ bool LinkState::update(NetworkView* view)
   pos_               = view->canvas()->screenToCanvas().transformPoint(vec(ImGui::GetMousePos()));
   auto const dropPin = view->hoveringPin();
 
-  if (srcPin_ != PIN_None) {
+  if (srcPin_ != NodePin::None) {
     if (dropPin.type == NodePin::Type::Out) {
       outPath_.clear();
     } else {
@@ -2369,7 +2369,7 @@ bool LinkState::update(NetworkView* view)
       outPath_ = view->graph()->calculatePath(startPos, pos_, {0, 1}, {0, -1}, startBB, midBB);
     }
   }
-  if (dstPin_ != PIN_None) {
+  if (dstPin_ != NodePin::None) {
     if (dropPin.type == NodePin::Type::In) {
       inPath_.clear();
     } else {
@@ -2382,7 +2382,7 @@ bool LinkState::update(NetworkView* view)
 
   if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
     bool  shiftDown = ImGui::GetIO().KeyMods == ImGuiMod_Shift;
-    if (srcPin_ != PIN_None && dropPin.type == NodePin::Type::In && dropPin.node != srcPin_.node) {
+    if (srcPin_ != NodePin::None && dropPin.type == NodePin::Type::In && dropPin.node != srcPin_.node) {
       auto srcNode = srcPin_.node;
       auto srcPin  = srcPin_.index;
       auto dstNode = dropPin.node;
@@ -2390,14 +2390,14 @@ bool LinkState::update(NetworkView* view)
       if (shiftDown) {
         view->editor()->swapOutput(view->graph().get(), srcNode, srcPin, dstPin_.node, dstPin_.index, dstNode, dstPin);
       } else {
-        if (dstPin_ != PIN_None) {
+        if (dstPin_ != NodePin::None) {
           view->editor()->removeLink(view->graph().get(), dstPin_.node, dstPin_.index);
         }
         view->editor()->setLink(view->graph().get(), view, srcNode, srcPin, dstNode, dstPin);
       }
     }
     if (
-      dstPin_ != PIN_None && dropPin.type == NodePin::Type::Out && dropPin.node != dstPin_.node) {
+      dstPin_ != NodePin::None && dropPin.type == NodePin::Type::Out && dropPin.node != dstPin_.node) {
       auto srcNode = dropPin.node;
       auto srcPin  = dropPin.index;
       auto dstNode = dstPin_.node;
@@ -2408,24 +2408,24 @@ bool LinkState::update(NetworkView* view)
         view->editor()->setLink(view->graph().get(), view, srcNode, srcPin, dstNode, dstPin);
       }
     }
-    if (dropPin == PIN_None) {
+    if (dropPin == NodePin::None) {
       auto dropItemID = view->hoveringItem();
       auto item       = view->graph()->get(dropItemID);
       if (item && item->asNode()) {
         auto* node = item->asNode();
-        if (srcPin_ != PIN_None) {
+        if (srcPin_ != NodePin::None) {
           auto pin = node->getPinForIncomingLink(srcPin_.node, srcPin_.index);
           view->editor()->setLink(view->graph().get(), view, srcPin_.node, srcPin_.index, dropItemID, pin);
         }
-        if (dstPin_ != PIN_None) {
+        if (dstPin_ != NodePin::None) {
           if (node->numOutputs() > 0)
             view->editor()->setLink(view->graph().get(), view, dropItemID, 0, dstPin_.node, dstPin_.index);
         }
       } else if (item && item->asRouter()) {
         auto* router = item->asRouter();
-        if (srcPin_ != PIN_None)
+        if (srcPin_ != NodePin::None)
           view->editor()->setLink(view->graph().get(), view, srcPin_.node, srcPin_.index, dropItemID, 0);
-        if (dstPin_ != PIN_None)
+        if (dstPin_ != NodePin::None)
           view->editor()->setLink(view->graph().get(), view, dropItemID, 0, dstPin_.node, dstPin_.index);
       }
     }
@@ -2449,15 +2449,15 @@ void LinkState::draw(NetworkView* view)
 
 void LinkState::onExit(NetworkView* view)
 {
-  if (view->hoveringItem() == ID_None && view->hoveringPin() == PIN_None) {
+  if (view->hoveringItem() == ItemID::None && view->hoveringPin() == NodePin::None) {
     if (auto createNode = view->getState<CreateNodeState>())
       createNode->activate({ srcPin_.node, srcPin_.index }, { dstPin_.node, dstPin_.index });
   } else {
-    if (hiddenLink_ != ID_None)
+    if (hiddenLink_ != ItemID::None)
       view->unhideItem(hiddenLink_);
-    hiddenLink_ = ID_None;
-    srcPin_ = PIN_None;
-    dstPin_ = PIN_None;
+    hiddenLink_ = ItemID::None;
+    srcPin_ = NodePin::None;
+    dstPin_ = NodePin::None;
     outPath_.clear();
     inPath_.clear();
   }
@@ -2548,7 +2548,7 @@ bool HandleShortcut::update(NetworkView* view)
           solyLinkableItem = item;
         }
       }
-  if (view->hoveringItem() != ID_None && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+  if (view->hoveringItem() != ItemID::None && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
     tryEnter(view->hoveringItem());
   } else if (solyLinkableItem && ImGui::IsKeyPressed(ImGuiKey_Enter) && !view->readonly()) {
     if (modKeys == ImGuiMod_Ctrl) {
@@ -2584,7 +2584,7 @@ bool CreateNodeState::shouldEnter(NetworkView const* view) const
     return true;
   if (manualActivated_)
     return true;
-  if (view->hoveringItem() == ID_None && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+  if (view->hoveringItem() == ItemID::None && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
     return true;
   if (ImGui::IsKeyPressed(ImGuiKey_Enter)) {
     if (view->selectedItems().size() == 1)
@@ -2613,19 +2613,19 @@ void CreateNodeState::onEnter(NetworkView* view)
   confirmedItemType_ = "";
   isConfirmed_       = false;
   isPlaced_          = false;
-  hiddenLink_        = ID_None;
+  hiddenLink_        = ItemID::None;
   msghub::debug("entering create node state");
   if (manualActivated_) {
     // pass
     // pendingInputLink_ = {manualSourceID_, 0};
   } else {
-    pendingInputLink_  = {ID_None, -1};
-    pendingOutputLink_ = {ID_None, -1};
+    pendingInputLink_  = {ItemID::None, -1};
+    pendingOutputLink_ = {ItemID::None, -1};
     if (auto linkState = view->getState<LinkState>()) {
-      if (auto pin = linkState->srcPin(); pin != PIN_None) {
+      if (auto pin = linkState->srcPin(); pin != NodePin::None) {
         pendingInputLink_ = {pin.node, pin.index};
       }
-      if (auto pin = linkState->dstPin(); pin != PIN_None) {
+      if (auto pin = linkState->dstPin(); pin != NodePin::None) {
         pendingOutputLink_ = {pin.node, pin.index};
       }
     }
@@ -2634,7 +2634,7 @@ void CreateNodeState::onEnter(NetworkView* view)
   if (auto link = view->graph()->getLink(pendingOutputLink_.destItem, pendingOutputLink_.destPort))
     hiddenLink_ = link->id();
   else
-    hiddenLink_ = ID_None;
+    hiddenLink_ = ItemID::None;
   view->hideItem(hiddenLink_);
   if (auto linkState = view->getState<LinkState>())
     linkState->clear();
@@ -2662,10 +2662,10 @@ void CreateNodeState::onExit(NetworkView* view)
     }
   }
   pendingItemToPlace_ = nullptr;
-  pendingInputLink_   = {ID_None, -1};
-  if (hiddenLink_ != ID_None)
+  pendingInputLink_   = {ItemID::None, -1};
+  if (hiddenLink_ != ItemID::None)
     view->unhideItem(hiddenLink_);
-  pendingOutputLink_ = {ID_None, -1};
+  pendingOutputLink_ = {ItemID::None, -1};
   if (auto linkState = view->getState<LinkState>()) {
     linkState->clear();
   }
@@ -2823,14 +2823,14 @@ bool CreateNodeState::update(NetworkView* view)
         auto editgroup = view->graph()->docRoot()->history().editGroup("add item");
         auto id = view->graph()->add(pendingItemToPlace_);
         view->editor()->events().onItemAdded.emit(view->graph().get(), pendingItemToPlace_.get());
-        if (pendingInputLink_.sourceItem != ID_None) {
+        if (pendingInputLink_.sourceItem != ItemID::None) {
           if (
               pendingItemToPlace_->asRouter() ||
               pendingItemToPlace_->asNode() && pendingItemToPlace_->asNode()->numMaxInputs() != 0)
             view->editor()->setLink(view->graph().get(), view,
               pendingInputLink_.sourceItem, pendingInputLink_.sourcePort, id, 0);
         }
-        if (pendingOutputLink_.destItem != ID_None) {
+        if (pendingOutputLink_.destItem != ItemID::None) {
           if (
             pendingItemToPlace_->asRouter() ||
             pendingItemToPlace_->asNode() && pendingItemToPlace_->asNode()->numOutputs() != 0)
@@ -2838,7 +2838,7 @@ bool CreateNodeState::update(NetworkView* view)
               id, 0, pendingOutputLink_.destItem, pendingOutputLink_.destPort);
         }
         // reset group boxes
-        if (id != ID_None)
+        if (id != ItemID::None)
           view->editor()->confirmItemPlacements(view->graph().get(), {id}); // to trigger group box update
         isPlaced_ = true;
         msghub::debugf("item {} placed into graph", id.value());
@@ -2877,14 +2877,14 @@ void CreateNodeState::draw(NetworkView* view)
         view->canvas()->drawPoly(path.data(), path.size(), false, style);
       };
     if (auto* node = pendingItemToPlace_->asNode()) {
-      if (pendingInputLink_.sourceItem != ID_None && node->numMaxInputs() != 0) {
+      if (pendingInputLink_.sourceItem != ItemID::None && node->numMaxInputs() != 0) {
         drawLink(
           view->graph()->get(pendingInputLink_.sourceItem).get(),
           pendingInputLink_.sourcePort,
           node,
           0);
       }
-      if (pendingOutputLink_.destItem != ID_None && node->numOutputs() > 0) {
+      if (pendingOutputLink_.destItem != ItemID::None && node->numOutputs() > 0) {
         drawLink(
           node,
           0,
@@ -2892,14 +2892,14 @@ void CreateNodeState::draw(NetworkView* view)
           pendingOutputLink_.destPort);
       }
     } else if (auto* router = pendingItemToPlace_->asRouter()) {
-      if (pendingInputLink_.sourceItem != ID_None) {
+      if (pendingInputLink_.sourceItem != ItemID::None) {
         drawLink(
           view->graph()->get(pendingInputLink_.sourceItem).get(),
           pendingInputLink_.sourcePort,
           router,
           0);
       }
-      if (pendingOutputLink_.destItem != ID_None) {
+      if (pendingOutputLink_.destItem != ItemID::None) {
         drawLink(
           router,
           0,

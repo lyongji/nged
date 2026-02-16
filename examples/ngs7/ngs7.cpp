@@ -404,7 +404,7 @@ public:
 
 class S7Graph : public nged::Graph
 {
-  ItemID outputNodeID_  = ID_None;
+  ItemID outputNodeID_  = ItemID::None;
   bool   deserializing_ = false;
 
 public:
@@ -456,7 +456,7 @@ public:
 
   virtual ItemID add(GraphItemPtr item) override
   {
-    if (item->id() != ID_None) // if already added, e.g., output node can be added while it already exists (at creation)
+    if (item->id() != ItemID::None) // if already added, e.g., output node can be added while it already exists (at creation)
       return item->id();
     return Graph::add(item);
   }
