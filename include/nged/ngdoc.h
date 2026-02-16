@@ -13,6 +13,7 @@
 #include <map>
 #include <random>
 #include <set>
+#include <unordered_map>
 
 namespace nged {
 
@@ -751,6 +752,12 @@ protected:
   bool                                       readonly_ = false;
   String                                     name_;
 
+  // Cached adjacency (rebuilt lazily on topology change)
+  struct AdjEdge { ItemID node; sint port; };
+  bool topologyDirty_ = true;
+  std::unordered_multimap<ItemID, AdjEdge> adjDown_; // source node → dest (node, destPort)
+  std::unordered_multimap<ItemID, AdjEdge> adjUp_;   // dest node → source (node, sourcePort)
+
   friend class NodeGraphEditor;
   friend class NodeGraphDoc;
 
@@ -759,6 +766,8 @@ protected:
   virtual void regulateVariableInput(Node* node);
 
   void doRemoveNoCheck(ItemID item);
+  void invalidateTopology();
+  void rebuildAdjacency();
 
 public:
   Graph(NodeGraphDoc* root, Graph* parent, String name)

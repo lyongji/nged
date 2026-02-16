@@ -868,6 +868,7 @@ ItemID Graph::add(GraphItemPtr item)
   item->id_  = newid;
   items_.insert(newid);
   doc->notifyGraphModified(this);
+  invalidateTopology();
   item->settled();
   return newid;
 }
@@ -935,6 +936,7 @@ void Graph::regulateVariableInput(Node* node)
       linkIDs_[newoutput] = newid;
     }
   }
+  invalidateTopology();
 }
 
 void Graph::remove(HashSet<ItemID> const& items)
@@ -996,6 +998,7 @@ void Graph::remove(HashSet<ItemID> const& items)
   }
 
   doc->notifyGraphModified(this);
+  invalidateTopology();
 }
 
 void Graph::updateLinkPaths(HashSet<ItemID> const& items)
@@ -1149,6 +1152,7 @@ LinkPtr Graph::setLink(ItemID sourceItem, sint sourcePort, ItemID destItem, sint
       }
     }
     doc->notifyGraphModified(this);
+    invalidateTopology();
     return linkptr;
   }
   return nullptr;
@@ -1190,6 +1194,7 @@ void Graph::removeLink(ItemID destNodeID, sint destPort)
       }
     }
     doc->notifyGraphModified(this);
+    invalidateTopology();
   }
 }
 
@@ -1424,6 +1429,7 @@ void Graph::clear()
   items_.clear();
   links_.clear();
   linkIDs_.clear();
+  invalidateTopology();
 }
 
 bool Graph::deserialize(Json const& json)
@@ -1511,92 +1517,110 @@ bool Graph::deserialize(Json const& json)
   }
 
   doc->notifyGraphModified(this);
+  invalidateTopology();
   return true;
+}
+
+void Graph::invalidateTopology() { topologyDirty_ = true; }
+
+void Graph::rebuildAdjacency()
+{
+  adjDown_.clear();
+  adjUp_.clear();
+
+  // Helper: resolve an item through router chains to the underlying node.
+  // Returns the node's ItemID and the port on the originating side of the first link.
+  auto resolveToNode = [&](ItemID itemId, sint port) -> std::pair<ItemID, sint> {
+    for (;;) {
+      auto itemptr = docRoot_->getItem(itemId);
+      if (!itemptr)
+        return {ItemID::None, -1};
+      if (itemptr->asNode())
+        return {itemId, port};
+      if (itemptr->asRouter()) {
+        // router always has a single input at port 0 — follow it
+        if (InputConnection ic; getLinkSource(itemId, 0, ic)) {
+          itemId = ic.sourceItem;
+          port   = ic.sourcePort;
+        } else {
+          return {ItemID::None, -1}; // dangling router
+        }
+      } else {
+        return {ItemID::None, -1};
+      }
+    }
+  };
+
+  // Build node-to-node edges from links (resolving routers).
+  for (auto const& link : links_) {
+    auto const& oc = link.first;  // dest side
+    auto const& ic = link.second; // source side
+    // only process links whose destination is a node (not a router)
+    auto dstItem = docRoot_->getItem(oc.destItem);
+    if (!dstItem || !dstItem->asNode())
+      continue;
+    // resolve source through routers
+    auto [srcNode, srcPort] = resolveToNode(ic.sourceItem, ic.sourcePort);
+    if (srcNode == ItemID::None)
+      continue;
+    adjDown_.emplace(srcNode, AdjEdge{oc.destItem, oc.destPort});
+    adjUp_.emplace(oc.destItem, AdjEdge{srcNode, srcPort});
+  }
+
+  // Add extra-dependency edges (already node-to-node).
+  Vector<ItemID> deps;
+  for (auto id : items_) {
+    auto itemptr = get(id);
+    if (auto* nodeptr = itemptr->asNode()) {
+      deps.clear();
+      if (nodeptr->getExtraDependencies(deps)) {
+        for (auto depid : deps) {
+          adjDown_.emplace(depid, AdjEdge{id, -1});
+          adjUp_.emplace(id, AdjEdge{depid, -1});
+        }
+      }
+    }
+  }
+
+  topologyDirty_ = false;
 }
 
 bool Graph::checkLoopBottomUp(ItemID target, Vector<ItemID>& loop, HashSet<ItemID>* visited)
 {
-  class LoopChecker
-  {
-    Graph* g;
+  if (topologyDirty_)
+    rebuildAdjacency();
 
-  public:
-    LoopChecker(Graph* graph) : g(graph) {}
+  // DFS cycle detection on adjUp_ (follow sources from target).
+  HashSet<ItemID> vis;
+  HashSet<ItemID> onStack;
+  Vector<ItemID>  path;
 
-    HashSet<ItemID> visited;
-    HashSet<ItemID> stack;
-    Vector<ItemID>  loop;
-
-    bool isVisited(ItemID id) const { return visited.find(id) != visited.end(); }
-    bool isInStack(ItemID id) const { return stack.find(id) != stack.end(); }
-
-    bool visit(ItemID itemid)
-    {
-      loop.push_back(itemid);
-      if (!isVisited(itemid)) {
-        visited.insert(itemid);
-        stack.insert(itemid);
-        if (auto item = g->docRoot()->getItem(itemid)) {
-          auto* gr = item->parent();
-          if (auto* node = item->asNode()) {
-            if (node->numMaxInputs() > 0) {
-              for (sint i = 0; i < node->numMaxInputs(); ++i) {
-                if (auto itr = gr->allLinks().find({itemid, i}); itr != gr->allLinks().end()) {
-                  if (!isVisited(itr->second.sourceItem)) {
-                    if (visit(itr->second.sourceItem))
-                      return true;
-                  }
-                  if (isInStack(itr->second.sourceItem))
-                    return true;
-                }
-              }
-            } else if (node->numMaxInputs() < 0) {
-              for (auto&& link : gr->allLinks()) {
-                if (link.first.destItem == itemid) {
-                  if (!isVisited(link.second.sourceItem)) {
-                    if (visit(link.second.sourceItem))
-                      return true;
-                  }
-                  if (isInStack(link.second.sourceItem))
-                    return true;
-                }
-              }
-            }
-            if (Vector<ItemID> deps; node->getExtraDependencies(deps)) {
-              for (auto dep : deps) {
-                if (!isVisited(dep)) {
-                  if (visit(dep))
-                    return true;
-                }
-                if (isInStack(dep))
-                  return true;
-              }
-            }
-          } else if (item->asRouter()) {
-            if (auto itr = gr->allLinks().find({itemid, 0}); itr != gr->allLinks().end()) {
-              if (!isVisited(itr->second.sourceItem)) {
-                if (visit(itr->second.sourceItem))
-                  return true;
-              }
-              if (isInStack(itr->second.sourceItem))
-                return true;
-            }
-          }
-        }
+  std::function<bool(ItemID)> dfs = [&](ItemID id) -> bool {
+    path.push_back(id);
+    vis.insert(id);
+    onStack.insert(id);
+    for (auto range = adjUp_.equal_range(id); range.first != range.second; ++range.first) {
+      auto src = range.first->second.node;
+      if (onStack.count(src)) {
+        path.push_back(src);
+        return true; // cycle
       }
-      stack.erase(itemid);
-      loop.pop_back();
-      return false;
+      if (!vis.count(src)) {
+        if (dfs(src))
+          return true;
+      }
     }
+    onStack.erase(id);
+    path.pop_back();
+    return false;
   };
 
-  LoopChecker checker(this);
-  if (checker.visit(target)) {
-    loop = checker.loop;
+  if (dfs(target)) {
+    loop = std::move(path);
     return true;
   }
   if (visited)
-    for (auto&& id : checker.visited)
+    for (auto&& id : vis)
       visited->insert(id);
   return false;
 }
@@ -1607,6 +1631,9 @@ bool Graph::traverse(
   bool                  topdown,
   bool                  allowLoop)
 {
+  if (topologyDirty_)
+    rebuildAdjacency();
+
   auto& nodes    = result.nodes_;
   auto& inputs   = result.inputs_;
   auto& outputs  = result.outputs_;
@@ -1618,197 +1645,175 @@ bool Graph::traverse(
   inputs.clear();
   outputs.clear();
   closures.clear();
+  idmap.clear();
 
-  HashMap<NodePtr, size_t> nodeIndex; // nodeptr -> index in result.nodes_
-  HashSet<ItemID>          visited;
-  std::deque<ItemID>       toVisit;
+  auto& followEdges  = topdown ? adjDown_ : adjUp_;
+  auto& reverseEdges = topdown ? adjUp_ : adjDown_;
 
-  auto indexofnode = [&nodeIndex](GraphItemPtr item) -> size_t {
-    if (!item || !item->asNode())
-      return -1;
-    if (auto itr = nodeIndex.find(std::static_pointer_cast<Node>(item)); itr != nodeIndex.end())
-      return itr->second;
-    else
-      return -1;
-  };
-
-  std::unordered_multimap<ItemID, ItemID> linkUp;
-  std::unordered_multimap<ItemID, ItemID> linkDown;
-  HashSet<Graph*> referencedGraphs; // extraDependencies can reference to other graphs
-  HashSet<Graph*> visitedGraphs;
-  auto            traceLinks = [&](Graph* graph) {
-    for (auto const& link : graph->links_) {
-      linkDown.emplace(link.second.sourceItem, link.first.destItem);
-      linkUp.emplace(link.first.destItem, link.second.sourceItem);
-    }
-    Vector<ItemID> deps;
-    for (auto id : graph->items_) {
-      auto itemptr = graph->get(id);
-      if (auto* nodeptr = itemptr->asNode()) {
-        if (nodeptr->getExtraDependencies(deps)) {
-          for (auto depid : deps) {
-            linkDown.emplace(depid, id);
-            linkUp.emplace(id, depid);
-            auto depitem = graph->docRoot_->getItem(depid);
-            referencedGraphs.insert(depitem->parent());
-          }
-        }
-      }
-    }
-  };
-  for (Graph* nextGraphToVisit = this; nextGraphToVisit;) {
-    traceLinks(nextGraphToVisit);
-    visitedGraphs.insert(nextGraphToVisit);
-    nextGraphToVisit = nullptr;
-    for (auto* graph : referencedGraphs) {
-      if (!utils::contains(visitedGraphs, graph)) {
-        nextGraphToVisit = graph;
-        break;
-      }
-    }
-  }
-
-  auto& linkToFollow = topdown ? linkDown : linkUp;
-  for (auto id : startPoints)
-    toVisit.push_back(id);
-
-  HashSet<ItemID> visitedWithNoLoop;
-  while (!toVisit.empty()) {
-    auto    id      = toVisit.front();
-    auto    itemptr = get(id);
-    NodePtr nodeptr = nullptr;
-    toVisit.pop_front();
-
+  // 1. BFS to find reachable node set from startPoints (using followEdges).
+  HashSet<ItemID>    reachable;
+  std::deque<ItemID> bfsQueue;
+  for (auto id : startPoints) {
+    auto itemptr = docRoot_->getItem(id);
     if (!itemptr) {
       msghub::warnf("item {:x} is not a valid target now", id.value());
       continue;
     }
-    if (itemptr->asNode())
-      nodeptr = std::static_pointer_cast<Node>(itemptr);
+    if (itemptr->asNode() && !reachable.count(id)) {
+      reachable.insert(id);
+      bfsQueue.push_back(id);
+    }
+  }
+  while (!bfsQueue.empty()) {
+    auto id = bfsQueue.front();
+    bfsQueue.pop_front();
+    for (auto range = followEdges.equal_range(id); range.first != range.second; ++range.first) {
+      auto next = range.first->second.node;
+      if (!reachable.count(next)) {
+        auto itemptr = docRoot_->getItem(next);
+        if (itemptr && itemptr->asNode()) {
+          reachable.insert(next);
+          bfsQueue.push_back(next);
+        }
+      }
+    }
+  }
 
-    if (auto itr = visited.find(id); itr != visited.end()) {
-      if (!allowLoop) {
-        if (visitedWithNoLoop.find(id) != visitedWithNoLoop.end()) {
-          // pass;
-        } else if (Vector<ItemID> loopPath; checkLoopBottomUp(id, loopPath, &visitedWithNoLoop)) {
+  // 2. Compute in-degrees for reachable nodes (using reverseEdges, restricted to reachable set).
+  HashMap<ItemID, sint> inDegree;
+  for (auto id : reachable)
+    inDegree[id] = 0;
+  for (auto id : reachable) {
+    for (auto range = reverseEdges.equal_range(id); range.first != range.second; ++range.first) {
+      if (reachable.count(range.first->second.node))
+        ++inDegree[id];
+    }
+  }
+
+  // 3. Kahn's: seed queue with in-degree-0 nodes, pop and append to result.
+  std::deque<ItemID> kahnQueue;
+  for (auto& [id, deg] : inDegree) {
+    if (deg == 0)
+      kahnQueue.push_back(id);
+  }
+
+  Vector<ItemID> sorted;
+  sorted.reserve(reachable.size());
+  while (!kahnQueue.empty()) {
+    auto id = kahnQueue.front();
+    kahnQueue.pop_front();
+    sorted.push_back(id);
+    for (auto range = followEdges.equal_range(id); range.first != range.second; ++range.first) {
+      auto next = range.first->second.node;
+      if (reachable.count(next)) {
+        if (--inDegree[next] == 0)
+          kahnQueue.push_back(next);
+      }
+    }
+  }
+
+  // 4. Cycle detection.
+  if (sorted.size() < reachable.size()) {
+    if (!allowLoop) {
+      // Find a cycle and report it.
+      HashSet<ItemID> sortedSet(sorted.begin(), sorted.end());
+      for (auto id : reachable) {
+        if (!sortedSet.count(id)) {
+          Vector<ItemID> loopPath;
+          checkLoopBottomUp(id, loopPath);
           msghub::error("loop detected, which is not allowed:");
           msghub::error("loop path: {");
           String name;
           loopPath.push_back(loopPath.front());
-          for (auto id : loopPath) {
-            auto item = docRoot_->getItem(id);
+          for (auto lid : loopPath) {
+            auto item = docRoot_->getItem(lid);
             if (auto* node = item->asNode())
               name = node->name();
             else if (item->asRouter())
               name = "router";
             else
               name = "GraphItem";
-            msghub::errorf("  {}({:x})", name, id.value());
+            msghub::errorf("  {}({:x})", name, lid.value());
           }
           msghub::error("} // loop path");
           return false;
         }
       }
-      // move to the back
-      if (nodeptr) {
-        if (auto itr = nodeIndex.find(nodeptr); itr != nodeIndex.end()) {
-          nodes.push_back(nodeptr);
-          nodes[itr->second] = nullptr;
-          itr->second        = nodes.size() - 1;
-        } else {
-          msghub::error("visited node should have a index");
-          assert(false);
-        }
-      }
-    } else {
-      if (nodeptr) {
-        nodes.push_back(nodeptr);
-        nodeIndex[nodeptr] = nodes.size() - 1;
-      }
     }
-    visited.insert(id);
-    for (auto range = linkToFollow.equal_range(id); range.first != range.second; ++range.first) {
-      toVisit.push_back(range.first->second);
+    // allowLoop: append remaining unsorted nodes
+    for (auto id : reachable) {
+      bool found = false;
+      for (auto sid : sorted) {
+        if (sid == id) { found = true; break; }
+      }
+      if (!found)
+        sorted.push_back(id);
     }
-    // if (nodeptr) {
-    //   if (Vector<ItemID> deps; nodeptr->getExtraDependencies(deps)) {
-    //     for (auto depid : deps) {
-    //       toVisit.push_back(depid);
-    //     }
-    //   }
-    // }
   }
-  // remove nullptrs in nodes array
-  size_t denseSize = 0;
-  for (size_t r = 0, w = 0, n = nodes.size();; ++r, ++w, ++denseSize) {
-    while (r < n && nodes[r] == nullptr)
-      ++r;
-    if (r >= n)
-      break;
-    if (r == w)
-      continue;
-    nodes[w]            = nodes[r];
-    nodeIndex[nodes[w]] = w;
-  }
-  nodes.resize(denseSize);
 
+  // 5. Build nodes array from sorted order.
+  for (auto id : sorted) {
+    auto itemptr = docRoot_->getItem(id);
+    if (itemptr && itemptr->asNode())
+      nodes.push_back(std::static_pointer_cast<Node>(itemptr));
+  }
+
+  // Build idmap: node id → index in nodes_
+  for (size_t i = 0, n = nodes.size(); i < n; ++i)
+    idmap[nodes[i]->id()] = i;
+
+  // 6. Build closures (inputs/outputs) from adjacency maps.
   for (size_t i = 0, n = nodes.size(); i < n; ++i) {
     auto  id          = nodes[i]->id();
     auto  inputbegin  = inputs.size();
-    int   ninput      = 0;
+    sint  ninput      = 0;
     auto  outputbegin = outputs.size();
-    int   noutput     = 0;
-    auto* graph       = nodes[i]->parent();
-    if (Vector<ItemID> links; graph->linksOnNode(id, links)) {
-      for (auto linkid : links) {
-        if (auto link = graph->get(linkid)->asLink()) {
-          if (link->output().destItem == id) { // I am the dest
-            NodePtr inNode    = nullptr;
-            auto    inputItem = graph->get(link->input().sourceItem);
-            while (!inputItem->asNode()) {
-              if (InputConnection ic; graph->getLinkSource(inputItem->id(), 0, ic)) {
-                inputItem = graph->get(ic.sourceItem);
-              } else {
-                break;
-              }
-            }
-            sint const port = link->output().destPort;
-            if (port >= ninput)
-              ninput = port + 1;
-            auto writeindex = inputbegin + port;
-            if (writeindex >= inputs.size())
-              inputs.resize(writeindex + 1, -1);
-            inputs[writeindex] = indexofnode(inputItem);
-          } else if (link->input().sourceItem == id) {
-            // TODO: put outputs into their ports
-            for (std::vector<ItemID> idsToResolve = {id}; !idsToResolve.empty();) {
-              auto iid = idsToResolve.back();
-              idsToResolve.pop_back();
-              for (auto range = linkDown.equal_range(iid); range.first != range.second;
-                   ++range.first) {
-                auto item = graph->get(range.first->second);
-                if (item->asNode()) {
-                  auto idx = indexofnode(item);
-                  if (idx == -1)
-                    continue;
-                  outputs.push_back(idx);
-                  ++noutput;
-                } else if (item->asRouter()) {
-                  idsToResolve.push_back(item->id());
-                }
-              }
-            }
-          }
+    sint  noutput     = 0;
+
+    // Build input list: adjUp_ gives us (source node, source port) for each incoming edge.
+    // The port stored in adjUp_ is the source port; we need the dest port from adjDown_ or
+    // from the links. But adjUp_ key is dest node, value is {src node, src port}.
+    // For the closure, inputs are indexed by dest port.
+    // We need to find the dest port for each input. Let's query adjDown_ from each source.
+    // Actually, adjUp_ stores AdjEdge{srcNode, srcPort} keyed by destNode.
+    // adjDown_ stores AdjEdge{destNode, destPort} keyed by srcNode.
+    // So to get dest ports for inputs, we look at adjDown_ from each source to this node.
+
+    // Collect inputs: look up all edges entering this node (from adjUp_),
+    // but we need dest port info. Use adjDown_ to find it.
+    for (auto range = adjUp_.equal_range(id); range.first != range.second; ++range.first) {
+      auto srcNode = range.first->second.node;
+      // Find the corresponding adjDown_ entry to get the dest port.
+      for (auto dr = adjDown_.equal_range(srcNode); dr.first != dr.second; ++dr.first) {
+        if (dr.first->second.node == id) {
+          sint port = dr.first->second.port;
+          if (port < 0) continue; // extra-dependency, no port
+          if (port >= ninput)
+            ninput = port + 1;
+          auto writeindex = inputbegin + static_cast<size_t>(port);
+          if (writeindex >= inputs.size())
+            inputs.resize(writeindex + 1, -1);
+          auto srcIt = idmap.find(srcNode);
+          inputs[writeindex] = (srcIt != idmap.end()) ? srcIt->second : size_t(-1);
         }
       }
     }
+
+    // Collect outputs: adjDown_ entries from this node to other reachable nodes.
+    for (auto range = adjDown_.equal_range(id); range.first != range.second; ++range.first) {
+      auto destNode = range.first->second.node;
+      auto destIt = idmap.find(destNode);
+      if (destIt != idmap.end()) {
+        outputs.push_back(destIt->second);
+        ++noutput;
+      }
+    }
+
     closures.push_back(
-      {i, Range{inputbegin, inputbegin + ninput}, Range{outputbegin, outputbegin + noutput}});
+      {i, Range{inputbegin, inputbegin + static_cast<size_t>(ninput)},
+       Range{outputbegin, outputbegin + static_cast<size_t>(noutput)}});
   }
 
-  idmap.clear();
-  for (size_t i = 0, n = nodes.size(); i < n; ++i)
-    idmap[nodes[i]->id()] = i;
   return true;
 }
 

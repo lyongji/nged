@@ -131,6 +131,482 @@ TEST_CASE("Graph Creation") {
   CHECK(doc.numItems() == 3); // subgraph and its content should be gone.
 }
 
+// Helper: collect node pointers in traversal order
+static std::vector<nged::Node*> traverseNodes(nged::GraphTraverseResult const& tr)
+{
+  std::vector<nged::Node*> out;
+  for (size_t i = 0; i < tr.size(); ++i)
+    out.push_back(tr.node(i));
+  return out;
+}
+
+TEST_CASE("Graph Traversal") {
+  auto itemfactory = nged::defaultGraphItemFactory();
+  nged::NodeGraphDoc doc(std::make_shared<MyNodeFactory>(), itemfactory);
+  doc.makeRoot();
+  auto graph = doc.root();
+
+  SUBCASE("Single node top-down") {
+    auto a = graph->createNode("null");
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelTopDown(tr, a->id()));
+    CHECK(tr.size() == 1);
+    CHECK(tr.node(0) == a.get());
+    CHECK(tr.inputCount(0) == 0);
+    CHECK(tr.outputCount(0) == 0);
+  }
+
+  SUBCASE("Single node bottom-up") {
+    auto a = graph->createNode("null");
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelBottomUp(tr, a->id()));
+    CHECK(tr.size() == 1);
+    CHECK(tr.node(0) == a.get());
+  }
+
+  SUBCASE("Linear chain top-down: A -> B -> C") {
+    auto a = graph->createNode("in");   // 0 in, 1 out
+    auto b = graph->createNode("null"); // 1 in, 1 out
+    auto c = graph->createNode("out");  // 1 in, 0 out
+    graph->setLink(a->id(), 0, b->id(), 0);
+    graph->setLink(b->id(), 0, c->id(), 0);
+
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelTopDown(tr, a->id()));
+    CHECK(tr.size() == 3);
+    // topological order: A before B before C
+    auto nodes = traverseNodes(tr);
+    CHECK(nodes[0] == a.get());
+    CHECK(nodes[1] == b.get());
+    CHECK(nodes[2] == c.get());
+
+    // Check closures for B
+    auto bIdx = tr.find(b->id());
+    REQUIRE(bIdx.valid());
+    CHECK(bIdx.inputCount() == 1);
+    CHECK(bIdx.input(0) == a.get());
+    CHECK(bIdx.outputCount() == 1);
+    CHECK(bIdx.output(0) == c.get());
+  }
+
+  SUBCASE("Linear chain bottom-up from C") {
+    auto a = graph->createNode("in");
+    auto b = graph->createNode("null");
+    auto c = graph->createNode("out");
+    graph->setLink(a->id(), 0, b->id(), 0);
+    graph->setLink(b->id(), 0, c->id(), 0);
+
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelBottomUp(tr, c->id()));
+    CHECK(tr.size() == 3);
+    // bottom-up: C before B before A
+    auto nodes = traverseNodes(tr);
+    CHECK(nodes[0] == c.get());
+    CHECK(nodes[1] == b.get());
+    CHECK(nodes[2] == a.get());
+  }
+
+  SUBCASE("Diamond graph: A -> B, A -> C, B -> D, C -> D") {
+    auto a = graph->createNode("in");
+    auto b = graph->createNode("null");
+    auto c = graph->createNode("null");
+    auto d = graph->createNode("exec"); // 4 in, 1 out
+    graph->setLink(a->id(), 0, b->id(), 0);
+    graph->setLink(a->id(), 0, c->id(), 0);
+    graph->setLink(b->id(), 0, d->id(), 0);
+    graph->setLink(c->id(), 0, d->id(), 1);
+
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelTopDown(tr, a->id()));
+    CHECK(tr.size() == 4);
+    // A must come before B and C; B and C must come before D
+    auto nodes = traverseNodes(tr);
+    CHECK(nodes[0] == a.get());
+    CHECK(nodes[3] == d.get());
+    // B and C can be in either order, but both at positions 1-2
+    CHECK(((nodes[1] == b.get() && nodes[2] == c.get()) ||
+           (nodes[1] == c.get() && nodes[2] == b.get())));
+
+    // Check D's inputs
+    auto dIdx = tr.find(d->id());
+    REQUIRE(dIdx.valid());
+    CHECK(dIdx.inputCount() == 2);
+    CHECK(dIdx.input(0) == b.get());
+    CHECK(dIdx.input(1) == c.get());
+  }
+
+  SUBCASE("Diamond bottom-up from D") {
+    auto a = graph->createNode("in");
+    auto b = graph->createNode("null");
+    auto c = graph->createNode("null");
+    auto d = graph->createNode("exec");
+    graph->setLink(a->id(), 0, b->id(), 0);
+    graph->setLink(a->id(), 0, c->id(), 0);
+    graph->setLink(b->id(), 0, d->id(), 0);
+    graph->setLink(c->id(), 0, d->id(), 1);
+
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelBottomUp(tr, d->id()));
+    CHECK(tr.size() == 4);
+    auto nodes = traverseNodes(tr);
+    // D first, A last
+    CHECK(nodes[0] == d.get());
+    CHECK(nodes[3] == a.get());
+  }
+
+  SUBCASE("Partial traversal: only reachable nodes") {
+    // A -> B -> C, D (disconnected)
+    auto a = graph->createNode("in");
+    auto b = graph->createNode("null");
+    auto c = graph->createNode("out");
+    auto d = graph->createNode("null"); // disconnected
+    graph->setLink(a->id(), 0, b->id(), 0);
+    graph->setLink(b->id(), 0, c->id(), 0);
+
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelTopDown(tr, a->id()));
+    CHECK(tr.size() == 3); // D not included
+    CHECK(!tr.find(d->id()).valid());
+  }
+
+  SUBCASE("Multiple start points top-down") {
+    // A -> C, B -> C
+    auto a = graph->createNode("in");
+    auto b = graph->createNode("in");
+    auto c = graph->createNode("exec");
+    graph->setLink(a->id(), 0, c->id(), 0);
+    graph->setLink(b->id(), 0, c->id(), 1);
+
+    nged::Vector<nged::ItemID> starts = {a->id(), b->id()};
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelTopDown(tr, starts));
+    CHECK(tr.size() == 3);
+    // C must be last
+    auto nodes = traverseNodes(tr);
+    CHECK(nodes[2] == c.get());
+  }
+
+  SUBCASE("Multiple start points bottom-up") {
+    // A -> C, A -> D
+    auto a = graph->createNode("in");
+    auto c = graph->createNode("out");
+    auto d = graph->createNode("out");
+    graph->setLink(a->id(), 0, c->id(), 0);
+    graph->setLink(a->id(), 0, d->id(), 0);
+
+    nged::Vector<nged::ItemID> starts = {c->id(), d->id()};
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelBottomUp(tr, starts));
+    CHECK(tr.size() == 3);
+    // A must be last (it's the source)
+    auto nodes = traverseNodes(tr);
+    CHECK(nodes[2] == a.get());
+  }
+
+  SUBCASE("Variable input (merge) node") {
+    auto a = graph->createNode("in");
+    auto b = graph->createNode("in");
+    auto c = graph->createNode("in");
+    auto m = graph->createNode("merge"); // -1 inputs
+    graph->setLink(a->id(), 0, m->id(), -1);
+    graph->setLink(b->id(), 0, m->id(), -1);
+    graph->setLink(c->id(), 0, m->id(), -1);
+
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelBottomUp(tr, m->id()));
+    CHECK(tr.size() == 4);
+    // merge is first
+    CHECK(tr.node(0) == m.get());
+    CHECK(tr.inputCount(0) == 3);
+  }
+
+  SUBCASE("Sparse input ports") {
+    auto a = graph->createNode("in");
+    auto b = graph->createNode("in");
+    auto e = graph->createNode("exec"); // 4 inputs
+    // Connect to ports 0 and 3, leaving 1 and 2 empty
+    graph->setLink(a->id(), 0, e->id(), 0);
+    graph->setLink(b->id(), 0, e->id(), 3);
+
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelBottomUp(tr, e->id()));
+    CHECK(tr.size() == 3);
+    CHECK(tr.node(0) == e.get());
+    CHECK(tr.inputCount(0) == 4);
+    CHECK(tr.inputOf(0, 0) == a.get());
+    CHECK(tr.inputOf(0, 1) == nullptr);
+    CHECK(tr.inputOf(0, 2) == nullptr);
+    CHECK(tr.inputOf(0, 3) == b.get());
+  }
+
+  SUBCASE("Node outputs in closure") {
+    auto a = graph->createNode("in");
+    auto b = graph->createNode("out");
+    auto c = graph->createNode("out");
+    graph->setLink(a->id(), 0, b->id(), 0);
+    graph->setLink(a->id(), 0, c->id(), 0);
+
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelTopDown(tr, a->id()));
+    CHECK(tr.size() == 3);
+    auto aIdx = tr.find(a->id());
+    REQUIRE(aIdx.valid());
+    CHECK(aIdx.outputCount() == 2);
+    // Both b and c should be in outputs
+    std::set<nged::Node*> outputNodes;
+    for (int i = 0; i < aIdx.outputCount(); ++i)
+      outputNodes.insert(aIdx.output(i));
+    CHECK(outputNodes.count(b.get()));
+    CHECK(outputNodes.count(c.get()));
+  }
+
+  SUBCASE("Router traversal: A -> Router -> B") {
+    auto a = graph->createNode("in");
+    auto b = graph->createNode("out");
+
+    auto routerItem = doc.itemFactory()->make(graph.get(), "router");
+    REQUIRE(routerItem != nullptr);
+    auto routerID = graph->add(routerItem);
+    REQUIRE(routerID != nged::ItemID::None);
+
+    // A -> Router, Router -> B
+    graph->setLink(a->id(), 0, routerID, 0);
+    graph->setLink(routerID, 0, b->id(), 0);
+
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelTopDown(tr, a->id()));
+    CHECK(tr.size() == 2); // only nodes, not routers
+    auto nodes = traverseNodes(tr);
+    CHECK(nodes[0] == a.get());
+    CHECK(nodes[1] == b.get());
+
+    // Check B's input resolves through router to A
+    auto bIdx = tr.find(b->id());
+    REQUIRE(bIdx.valid());
+    CHECK(bIdx.inputCount() == 1);
+    CHECK(bIdx.input(0) == a.get());
+  }
+
+  SUBCASE("Chained routers: A -> R1 -> R2 -> B") {
+    auto a = graph->createNode("in");
+    auto b = graph->createNode("out");
+
+    auto r1Item = doc.itemFactory()->make(graph.get(), "router");
+    auto r2Item = doc.itemFactory()->make(graph.get(), "router");
+    auto r1ID = graph->add(r1Item);
+    auto r2ID = graph->add(r2Item);
+
+    graph->setLink(a->id(), 0, r1ID, 0);
+    graph->setLink(r1ID, 0, r2ID, 0);
+    graph->setLink(r2ID, 0, b->id(), 0);
+
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelTopDown(tr, a->id()));
+    CHECK(tr.size() == 2);
+    CHECK(tr.node(0) == a.get());
+    CHECK(tr.node(1) == b.get());
+
+    // Bottom-up should also work
+    nged::GraphTraverseResult tr2;
+    CHECK(graph->travelBottomUp(tr2, b->id()));
+    CHECK(tr2.size() == 2);
+    CHECK(tr2.node(0) == b.get());
+    CHECK(tr2.node(1) == a.get());
+  }
+
+  SUBCASE("Router fan-out: A -> R -> B, R -> C") {
+    auto a = graph->createNode("in");
+    auto b = graph->createNode("out");
+    auto c = graph->createNode("out");
+
+    auto rItem = doc.itemFactory()->make(graph.get(), "router");
+    auto rID = graph->add(rItem);
+
+    graph->setLink(a->id(), 0, rID, 0);
+    graph->setLink(rID, 0, b->id(), 0);
+    graph->setLink(rID, 0, c->id(), 0);
+
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelTopDown(tr, a->id()));
+    CHECK(tr.size() == 3);
+    CHECK(tr.node(0) == a.get());
+    // B and C should both appear
+    std::set<nged::Node*> nodeSet;
+    for (size_t i = 0; i < tr.size(); ++i)
+      nodeSet.insert(tr.node(i));
+    CHECK(nodeSet.count(b.get()));
+    CHECK(nodeSet.count(c.get()));
+  }
+
+  SUBCASE("Topology cache invalidation on link add/remove") {
+    auto a = graph->createNode("in");
+    auto b = graph->createNode("out");
+
+    // Initially disconnected
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelTopDown(tr, a->id()));
+    CHECK(tr.size() == 1);
+
+    // Add link
+    graph->setLink(a->id(), 0, b->id(), 0);
+    CHECK(graph->travelTopDown(tr, a->id()));
+    CHECK(tr.size() == 2);
+    CHECK(tr.node(0) == a.get());
+    CHECK(tr.node(1) == b.get());
+
+    // Remove link
+    graph->removeLink(b->id(), 0);
+    CHECK(graph->travelTopDown(tr, a->id()));
+    CHECK(tr.size() == 1);
+    CHECK(tr.node(0) == a.get());
+  }
+
+  SUBCASE("Topology cache invalidation on node remove") {
+    auto a = graph->createNode("in");
+    auto b = graph->createNode("null");
+    auto c = graph->createNode("out");
+    graph->setLink(a->id(), 0, b->id(), 0);
+    graph->setLink(b->id(), 0, c->id(), 0);
+
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelTopDown(tr, a->id()));
+    CHECK(tr.size() == 3);
+
+    // Remove middle node
+    graph->remove({b->id()});
+    CHECK(graph->travelTopDown(tr, a->id()));
+    CHECK(tr.size() == 1); // only A remains reachable
+  }
+
+  SUBCASE("Accessor and Iterator interface") {
+    auto a = graph->createNode("in");
+    auto b = graph->createNode("null");
+    auto c = graph->createNode("out");
+    graph->setLink(a->id(), 0, b->id(), 0);
+    graph->setLink(b->id(), 0, c->id(), 0);
+
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelTopDown(tr, a->id()));
+
+    // Test iterator
+    int count = 0;
+    for (auto const& acc : tr) {
+      CHECK(acc.valid());
+      CHECK(acc.node() != nullptr);
+      ++count;
+    }
+    CHECK(count == 3);
+
+    // Test find
+    auto found = tr.find(b->id());
+    CHECK(found.valid());
+    CHECK(found.node() == b.get());
+
+    // Test find with non-existent id
+    auto notFound = tr.find(nged::ItemID::None);
+    CHECK(!notFound.valid());
+  }
+
+  SUBCASE("checkLoopBottomUp detects cycle") {
+    auto a = graph->createNode("null");
+    auto b = graph->createNode("null");
+    graph->setLink(a->id(), 0, b->id(), 0);
+    graph->setLink(b->id(), 0, a->id(), 0);
+
+    nged::Vector<nged::ItemID> loopPath;
+    CHECK(graph->checkLoopBottomUp(a->id(), loopPath));
+    CHECK(loopPath.size() >= 2);
+  }
+
+  SUBCASE("checkLoopBottomUp no false positive") {
+    auto a = graph->createNode("in");
+    auto b = graph->createNode("null");
+    auto c = graph->createNode("out");
+    graph->setLink(a->id(), 0, b->id(), 0);
+    graph->setLink(b->id(), 0, c->id(), 0);
+
+    nged::Vector<nged::ItemID> loopPath;
+    CHECK(!graph->checkLoopBottomUp(c->id(), loopPath));
+  }
+
+  SUBCASE("traverse with allowLoop=true on cyclic graph") {
+    auto a = graph->createNode("null");
+    auto b = graph->createNode("null");
+    graph->setLink(a->id(), 0, b->id(), 0);
+    graph->setLink(b->id(), 0, a->id(), 0);
+
+    nged::GraphTraverseResult tr;
+    CHECK(graph->traverse(tr, {a->id()}, true, true));
+    CHECK(tr.size() == 2);
+  }
+
+  SUBCASE("traverse with allowLoop=false rejects cycle") {
+    auto a = graph->createNode("null");
+    auto b = graph->createNode("null");
+    graph->setLink(a->id(), 0, b->id(), 0);
+    graph->setLink(b->id(), 0, a->id(), 0);
+
+    nged::GraphTraverseResult tr;
+    CHECK(!graph->traverse(tr, {a->id()}, true, false));
+  }
+
+  SUBCASE("Wider graph: multiple independent paths") {
+    //  A1 -> B -> D
+    //  A2 -> C -> D
+    auto a1 = graph->createNode("in");
+    auto a2 = graph->createNode("in");
+    auto b  = graph->createNode("null");
+    auto c  = graph->createNode("null");
+    auto d  = graph->createNode("exec"); // 4 in
+
+    graph->setLink(a1->id(), 0, b->id(), 0);
+    graph->setLink(a2->id(), 0, c->id(), 0);
+    graph->setLink(b->id(), 0, d->id(), 0);
+    graph->setLink(c->id(), 0, d->id(), 1);
+
+    nged::Vector<nged::ItemID> starts = {a1->id(), a2->id()};
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelTopDown(tr, starts));
+    CHECK(tr.size() == 5);
+
+    // D must be last
+    CHECK(tr.node(tr.size() - 1) == d.get());
+
+    // D has 2 inputs at ports 0 and 1
+    auto dIdx = tr.find(d->id());
+    REQUIRE(dIdx.valid());
+    CHECK(dIdx.inputCount() == 2);
+    CHECK(dIdx.input(0) == b.get());
+    CHECK(dIdx.input(1) == c.get());
+  }
+
+  SUBCASE("idmap lookup") {
+    auto a = graph->createNode("in");
+    auto b = graph->createNode("null");
+    auto c = graph->createNode("out");
+    graph->setLink(a->id(), 0, b->id(), 0);
+    graph->setLink(b->id(), 0, c->id(), 0);
+
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelTopDown(tr, a->id()));
+
+    // find() uses idmap internally
+    for (size_t i = 0; i < tr.size(); ++i) {
+      auto acc = tr.find(tr.node(i)->id());
+      CHECK(acc.valid());
+      CHECK(acc.index() == i);
+      CHECK(acc.node() == tr.node(i));
+    }
+  }
+
+  SUBCASE("Empty start points") {
+    nged::Vector<nged::ItemID> starts;
+    nged::GraphTraverseResult tr;
+    CHECK(graph->travelTopDown(tr, starts));
+    CHECK(tr.size() == 0);
+  }
+}
+
 struct DummyTypedDef
 {
   nged::String type;
