@@ -10,6 +10,7 @@
 #include "ngdoc/msghub.h"
 
 #include <cmath>
+#include <limits>
 #include <map>
 #include <random>
 #include <set>
@@ -50,7 +51,7 @@ private:
                           // will not be equal to uid
 
 protected:
-  size_t factory_ = -1;
+  size_t factory_ = std::numeric_limits<size_t>::max();
 
   AABB aabb_ = {{0, 0}, {0, 0}}; // local aabb
   Vec2 pos_  = {0, 0};           // position
@@ -997,7 +998,7 @@ public:
     if (atEditGroupLevel_ == 0) {
       return commit(std::move(message));
     } else {
-      return -1;
+      return std::numeric_limits<size_t>::max();
     }
   }
   EditGroup editGroup(String msg) { return EditGroup(this, std::move(msg)); }

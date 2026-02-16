@@ -175,7 +175,7 @@ public:
 
   bool getInputDescription(sint pin, nged::String& desc) const override
   {
-    if (pin >= 0 && pin < def->inputDescriptions.size()) {
+    if (pin >= 0 && size_t(pin) < def->inputDescriptions.size()) {
       desc = def->inputDescriptions[pin];
       return true;
     } else {
@@ -185,7 +185,7 @@ public:
 
   bool getOutputDescription(sint pin, nged::String& desc) const override
   {
-    if (pin >= 0 && pin < def->outputDescriptions.size()) {
+    if (pin >= 0 && size_t(pin) < def->outputDescriptions.size()) {
       desc = def->outputDescriptions[pin];
       return true;
     } else {

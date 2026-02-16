@@ -1,4 +1,3 @@
-add_defines('SPDLOG_COMPILED_LIB=1')
 set_languages('cxx17', 'c11')
 add_rules("mode.release")
 add_rules("mode.debug")
@@ -6,6 +5,7 @@ add_rules("mode.profile")
 add_rules("mode.check")
 set_warnings('all', 'extra')
 add_cxflags('-Wno-unused-parameter', {tools = {'gcc', 'clang'}})
+add_cxflags('/wd4100', '/wd4201', '/wd4146', '/wd4245', '/wd4127', {tools = {'cl'}})
 
 if is_mode('debug') then
   add_defines('DEBUG')
@@ -136,8 +136,9 @@ rule('python_config')
             target:add("includedirs", inc)
           end
           if is_plat("windows") then
-             local libdir = os.iorunv(python, {"-c", "import sysconfig; print(sysconfig.get_config_var('LIBDIR'), end='')"})
-             if libdir then target:add("linkdirs", libdir:trim()) end
+            local libdir = os.iorunv(python, {"-c", "import sysconfig; print(sysconfig.get_config_var('LIBDIR'), end='')"})
+            if libdir then target:add("linkdirs", libdir:trim()) end
+            print("Python libdir: " .. libdir)
           end
         end
       }
@@ -154,7 +155,7 @@ rule_end()
 if get_config('python') ~= 'no' then
   target('parmscript')
     set_kind('static')
-    add_cxflags('-fPIC')
+    add_cxflags('-fPIC', {tools = {'gcc', 'clang'}})
     add_deps('lua', 'imgui', 'nfd')
     add_includedirs('deps/lua', 'deps/sol2/include', 'deps/nlohmann')
     add_includedirs('deps/pybind11/include')
@@ -169,8 +170,8 @@ if get_config('python') ~= 'no' then
     set_kind('shared')
     add_headerfiles('include/nged/ngpy.h', 'include/nged/pybind11_imgui.h')
     add_files('src/ngpy.cpp', 'src/pybind11_imgui.cpp')
-    add_deps('nged', 'entry', 'parmscript', 'lua')
-    add_includedirs('include', 'deps/boxer/include', 'deps/imgui', 'deps/nlohmann', 'deps/spdlog/include', 'deps/parallel_hashmap/parallel_hashmap', 'deps/subprocess.h', 'deps/parmscript')
+    add_deps('nged', 'entry', 'parmscript', 'lua', 'spdlog')
+    add_includedirs('include', 'deps/boxer/include', 'deps/imgui', 'deps/nlohmann', 'deps/parallel_hashmap/parallel_hashmap', 'deps/subprocess.h', 'deps/parmscript')
     add_includedirs('deps/pybind11/include')
     add_cxflags('/bigobj', {tools='cl'})
 
@@ -317,9 +318,12 @@ target('imgui')
 
 target('spdlog')
   set_kind('static')
-  add_includedirs('deps/spdlog/include')
+  add_defines('SPDLOG_FMT_EXTERNAL=1', {public=true})
+  add_defines('SPDLOG_COMPILED_LIB=1', {public=true})
+  add_includedirs('deps/spdlog/include', {public=true})
   add_headerfiles('deps/spdlog/include/**.h')
   add_files('deps/spdlog/src/*.cpp')
+  add_deps('fmt')
   if is_plat('linux') then
     add_links('pthread')
   end
@@ -357,6 +361,7 @@ target('boxer')
 target('s7')
   set_kind('static')
   add_includedirs('deps/s7', {public=true})
+  add_includedirs('examples/ngs7')
   add_headerfiles('deps/s7/s7.h', 'examples/ngs7/s7-extensions.h')
   add_files      ('deps/s7/s7.c', 'examples/ngs7/s7-extensions.cpp')
   if is_plat('linux') then
@@ -374,15 +379,20 @@ target('miniz')
   add_files('deps/miniz/miniz.c')
   add_includedirs('deps/miniz', {public=true})
 
+target('fmt')
+  set_kind('static')
+  add_headerfiles('deps/fmt/include/**.h')
+  add_files('deps/fmt/src/format.cc', 'deps/fmt/src/os.cc')
+  add_includedirs('deps/fmt/include', {public=true})
+
 target('ngdoc')
   set_kind('static')
   add_headerfiles('include/nged/ngdoc.h')
   add_files('src/ngdoc.cpp', 'src/ngdraw.cpp', 'src/style.cpp')
-  add_deps('spdlog', 'miniz')
+  add_deps('spdlog', 'miniz', 'fmt')
   add_includedirs(
     'include',
     'deps/nlohmann',
-    'deps/spdlog/include',
     'deps/stduuid/include',
     'deps/stduuid', -- for gsl
     'deps/parallel_hashmap/parallel_hashmap',
@@ -398,7 +408,6 @@ target('nged')
     'include',
     'deps/boxer/include',
     'deps/nlohmann',
-    'deps/spdlog/include',
     'deps/parallel_hashmap/parallel_hashmap'
   )
 
@@ -412,7 +421,7 @@ target('tests')
 
 target('lua')
   set_kind('static')
-  add_cxflags('-fPIC')
+  add_cxflags('-fPIC', {tools = {'gcc', 'clang'}})
   add_includedirs('deps/lua')
   add_files('deps/lua/*.c|lua.c|luac.c|onelua.c')
   add_defines("LUA_COMPAT_5_3") -- Try adding compatibility flags if needed
@@ -480,7 +489,7 @@ target('ngs7')
   if is_plat('windows') then
     add_files('examples/ngs7/icon.rc')
   end
-  add_includedirs('.', 'deps/boxer/include', 'deps/imgui', 'deps/nlohmann', 'deps/spdlog/include', 'deps/subprocess.h')
+  add_includedirs('.', 'deps/boxer/include', 'deps/imgui', 'deps/nlohmann', 'deps/subprocess.h')
 
 task('pytest')
   set_menu({
