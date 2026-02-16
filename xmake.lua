@@ -273,7 +273,26 @@ target('imgui')
   elseif backend=='gl3' then
     add_files('deps/imgui/backends/imgui_impl_glfw.cpp', 'deps/imgui/backends/imgui_impl_opengl3.cpp')
   elseif backend=='metal' then
-    add_files('deps/imgui/backends/imgui_impl_glfw.cpp', 'deps/imgui/backends/imgui_impl_metal.mm')
+    add_files('deps/imgui/backends/imgui_impl_glfw.cpp')
+    on_load(function (target)
+      local outdir = path.join(target:autogendir(), "imgui_patched")
+      local patched = path.join(outdir, "imgui_impl_metal.mm")
+      target:add("files", patched)
+    end)
+    before_build(function (target)
+      import("lib.detect.find_tool")
+      local patch_tool = find_tool("patch")
+      if not patch_tool then
+        raise("patch program not found, required for Metal backend")
+      end
+      local orig = path.join(os.projectdir(), "deps/imgui/backends/imgui_impl_metal.mm")
+      local patchfile = path.join(os.projectdir(), "patches/imgui_impl_metal.patch")
+      local outdir = path.join(target:autogendir(), "imgui_patched")
+      local patched = path.join(outdir, "imgui_impl_metal.mm")
+      os.mkdir(outdir)
+      os.cp(orig, patched)
+      os.runv(patch_tool.program, {"-u", "-N", "-p2", "-i", patchfile, "-d", outdir}, {try = true})
+    end)
   end
   if is_plat('windows') or is_plat('msys') or is_plat('mingw') then
     add_links('ole32', 'uuid', 'gdi32', 'comctl32', 'dwmapi')
