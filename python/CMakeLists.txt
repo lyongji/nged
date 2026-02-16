@@ -65,10 +65,12 @@ if(NOT PYTHON_EXECUTABLE STREQUAL "no")
         target_compile_options(ngpy PRIVATE /bigobj)
     endif()
 
-    # Install the Python extension module directly to site-packages/nged
+    # Install the Python extension module into the wheel install-dir (nged/)
+    # Note: wheel.install-dir in pyproject.toml is already set to "nged",
+    # so DESTINATION here is relative to that — use "." to avoid double nesting.
     install(TARGETS ngpy
-        LIBRARY DESTINATION nged COMPONENT nged_python
-        RUNTIME DESTINATION nged COMPONENT nged_python
+        LIBRARY DESTINATION . COMPONENT nged_python
+        RUNTIME DESTINATION . COMPONENT nged_python
     )
 
     # Generate stubs after build
@@ -83,7 +85,7 @@ if(NOT PYTHON_EXECUTABLE STREQUAL "no")
 
     # Install the generated stubs
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ngpy.pyi"
-        DESTINATION nged
+        DESTINATION .
         COMPONENT nged_python
         OPTIONAL # In case generation fails (though it shouldn't)
     )
