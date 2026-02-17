@@ -1643,6 +1643,40 @@ bool Graph::traverse(
   if (topologyDirty_)
     rebuildAdjacency();
 
+  // Build merged adjacency across referenced graphs
+  std::unordered_multimap<ItemID, AdjEdge> mergedDown;
+  std::unordered_multimap<ItemID, AdjEdge> mergedUp;
+  {
+    HashSet<Graph*> visitedGraphs;
+    Vector<Graph*> queue;
+    queue.push_back(this);
+    while (!queue.empty()) {
+      Graph* g = queue.back();
+      queue.pop_back();
+      if (!visitedGraphs.insert(g).second)
+        continue;
+      if (g->topologyDirty_)
+        g->rebuildAdjacency();
+      mergedDown.insert(g->adjDown_.begin(), g->adjDown_.end());
+      mergedUp.insert(g->adjUp_.begin(), g->adjUp_.end());
+      // Discover referenced graphs from cross-graph edge endpoints
+      auto discover = [&](ItemID id) {
+        if (auto item = docRoot_->getItem(id)) {
+          if (auto* p = item->parent(); p && !visitedGraphs.count(p))
+            queue.push_back(p);
+        }
+      };
+      for (auto& [src, edge] : g->adjDown_) {
+        discover(src);
+        discover(edge.node);
+      }
+      for (auto& [dst, edge] : g->adjUp_) {
+        discover(dst);
+        discover(edge.node);
+      }
+    }
+  }
+
   auto& nodes    = result.nodes_;
   auto& inputs   = result.inputs_;
   auto& outputs  = result.outputs_;
@@ -1656,8 +1690,8 @@ bool Graph::traverse(
   closures.clear();
   idmap.clear();
 
-  auto& followEdges  = topdown ? adjDown_ : adjUp_;
-  auto& reverseEdges = topdown ? adjUp_ : adjDown_;
+  auto& followEdges  = topdown ? mergedDown : mergedUp;
+  auto& reverseEdges = topdown ? mergedUp   : mergedDown;
 
   // 1. BFS to find reachable node set from startPoints (using followEdges).
   HashSet<ItemID>    reachable;
@@ -1790,10 +1824,10 @@ bool Graph::traverse(
 
     // Collect inputs: look up all edges entering this node (from adjUp_),
     // but we need dest port info. Use adjDown_ to find it.
-    for (auto range = adjUp_.equal_range(id); range.first != range.second; ++range.first) {
+    for (auto range = mergedUp.equal_range(id); range.first != range.second; ++range.first) {
       auto srcNode = range.first->second.node;
       // Find the corresponding adjDown_ entry to get the dest port.
-      for (auto dr = adjDown_.equal_range(srcNode); dr.first != dr.second; ++dr.first) {
+      for (auto dr = mergedDown.equal_range(srcNode); dr.first != dr.second; ++dr.first) {
         if (dr.first->second.node == id) {
           sint port = dr.first->second.port;
           if (port < 0) continue; // extra-dependency, no port
@@ -1809,7 +1843,7 @@ bool Graph::traverse(
     }
 
     // Collect outputs: adjDown_ entries from this node to other reachable nodes.
-    for (auto range = adjDown_.equal_range(id); range.first != range.second; ++range.first) {
+    for (auto range = mergedDown.equal_range(id); range.first != range.second; ++range.first) {
       auto destNode = range.first->second.node;
       auto destIt = idmap.find(destNode);
       if (destIt != idmap.end()) {

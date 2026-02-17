@@ -568,5 +568,5 @@ task('pydemo_test')
     envs.PYTHONPATH = os.projectdir()
 
     print("Running examples/pydemo/test_headless.py...")
-    os.runv(python, {'examples/pydemo/test_headless.py'}, {envs = envs})
+    os.execv(python, {'examples/pydemo/test_headless.py'}, {envs = envs})
   end)

@@ -13,16 +13,11 @@ class SourceError(Exception):
 
 
 def getContext(graph):
-    '''subgraph can have their own context, otherwise the doc root holds the context'''
-    ctx = None
-    while graph.parent:
-        ctx = getattr(graph, 'evalContext', None)
-        if ctx is not None:
-            break
-        graph = graph.parent
-    if ctx is None:
-        ctx = graph.doc.evalContext
-    return ctx
+    '''Get the evaluation context that owns this graph.
+    Since traversal merges adjacency across all referenced graphs,
+    topology changes in any subgraph must invalidate the root traversal.
+    Always return the doc-root context so dirty flags propagate correctly.'''
+    return graph.doc.evalContext
 
 
 class Executor:

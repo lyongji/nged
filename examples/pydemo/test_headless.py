@@ -16,7 +16,7 @@ import traceback
 sys.path.insert(0, os.path.dirname(__file__))
 
 from nged import builtinGraphItemFactory, ItemID, idNone
-from evaluation import GraphEvaluationContext, NodeState, SourceError, PreparedGraph
+from evaluation import GraphEvaluationContext, NodeState, SourceError, PreparedGraph, getContext
 from document import MyDocument
 from node import nodeFactory, MyNode
 from graph import MyGraph
@@ -373,7 +373,7 @@ def test_any_all_nodes():
     g.setLink(e.id, 0, al.id, 0)
     g.setLink(al.id, 0, g.outputnode.id, 0)
 
-    doc.evalContext = GraphEvaluationContext()  # reset
+    getContext(g).topoDirty = True
     check_eq(full_eval(doc), False, "all([True, False, True]) == False")
 
 
@@ -555,7 +555,7 @@ def test_link_rewire():
     ctx.topoDirty = True
     g.setLink(e2.id, 0, g.outputnode.id, 0)
 
-    doc.evalContext = GraphEvaluationContext()  # fresh context
+    getContext(g).topoDirty = True
     check_eq(full_eval(doc), 20, "rewired to e2 -> 20")
 
 
@@ -570,7 +570,7 @@ def test_remove_link():
     check_eq(full_eval(doc), 5, "initial: 5")
 
     g.removeLink(g.outputnode.id, 0)
-    doc.evalContext = GraphEvaluationContext()
+    getContext(g).topoDirty = True
 
     # Output node does `return inputs[0]`, which will be None
     result = full_eval(doc)
@@ -593,7 +593,7 @@ def test_add_remove_node():
 
     # Remove e2 (not connected) — should be harmless
     g.remove([e2.id])
-    doc.evalContext = GraphEvaluationContext()
+    getContext(g).topoDirty = True
     check_eq(full_eval(doc), 1, "removing unconnected node is harmless")
 
 
@@ -612,7 +612,7 @@ def test_insert_node_mid_chain():
     g.setLink(e.id, 0, s.id, 0)
     g.setLink(s.id, 0, g.outputnode.id, 0)  # replaces old link
 
-    doc.evalContext = GraphEvaluationContext()
+    getContext(g).topoDirty = True
     check_eq(full_eval(doc), "5", "after insert str: '5'")
 
 
@@ -673,15 +673,7 @@ def test_fan_out():
 # ---------------------------------------------------------------------------
 
 def test_subgraph_passthrough():
-    """A subgraph with input->output acts as a passthrough.
-
-    NOTE: Subgraph evaluation requires cross-graph traversal — the root
-    graph's traversal must include the inner graph's links.  Currently
-    the C++ Graph::rebuildAdjacency only processes links_ of the owning
-    graph, so inner-graph links are missing and the inner output node
-    ends up with 0 inputs in the prepared graph.  This test verifies
-    the node wiring is correct and skips the evaluation that fails.
-    """
+    """A subgraph with input->output acts as a passthrough."""
     doc = make_doc()
     g = doc.root
 
@@ -703,13 +695,13 @@ def test_subgraph_passthrough():
     check(sub.getExtraDependencies() == [g_out.id],
           "subgraph node extra deps should point to inner output")
 
+    # Verify evaluation: value 42 should pass through the subgraph
+    result = full_eval(doc)
+    check_eq(result, 42, "subgraph passthrough should yield 42")
+
 
 def test_subgraph_computation():
-    """A subgraph can compute: input0 doubled via expression inside.
-
-    See note in test_subgraph_passthrough — cross-graph evaluation is
-    limited, so this test only verifies wiring.
-    """
+    """A subgraph can compute: input0 doubled via expression inside."""
     doc = make_doc()
     g = doc.root
 
@@ -734,6 +726,40 @@ def test_subgraph_computation():
           "doubler should be connected to inner input0")
     check(sg.getLinkSource(g_out.id, 0) is not None,
           "inner output should be connected to doubler")
+
+    # Verify evaluation: 5 * 2 = 10
+    result = full_eval(doc)
+    check_eq(result, 10, "subgraph doubler(5) should yield 10")
+
+
+def test_insert_subgraph_mid_chain():
+    """Evaluate lambda(1)->output, then splice a doubler subgraph in between."""
+    doc = make_doc()
+    g = doc.root
+
+    src = g.createNode('expression')
+    src.parm('expr').set('1')
+    g.setLink(src.id, 0, g.outputnode.id, 0)
+
+    # First evaluation: 1 -> output = 1
+    check_eq(full_eval(doc), 1, "before subgraph: 1")
+
+    # Insert subgraph(a*2) between src and output
+    sub = g.createNode('subgraph')
+    sg = sub.asGraph()
+
+    g.setLink(src.id, 0, sub.id, 0)
+    g.setLink(sub.id, 0, g.outputnode.id, 0)
+    getContext(g).topoDirty = True
+
+    doubler = sg.createNode('expression')
+    doubler.parm('expr').set('a * 2')
+    sg.setLink(sg.inputnodes[0].id, 0, doubler.id, 0)
+    sg.setLink(doubler.id, 0, sg.outputnode.id, 0)
+    getContext(sg).topoDirty = True
+
+    # Re-evaluate after topology change
+    check_eq(full_eval(doc), 2, "after inserting doubler subgraph: 1*2 = 2")
 
 
 # ---------------------------------------------------------------------------
@@ -1020,6 +1046,7 @@ def run_all():
         # Subgraph
         test_subgraph_passthrough,
         test_subgraph_computation,
+        test_insert_subgraph_mid_chain,
         # Function
         test_define_and_invoke_function,
         # Context unit tests
