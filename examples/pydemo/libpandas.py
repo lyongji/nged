@@ -95,6 +95,6 @@ def drop_columns(inputs: list[pd.DataFrame], parms):
     NodeDesc('df.query', 'df.query', iconData='query', iconType=IconType.Text,
              numMaxInputs=1, numRequiredInputs=1, numOutputs=1,
              parms='''text 'expr' {label='Expr', default=''}'''))
-def drop_columns(inputs: list[pd.DataFrame], parms):
+def query_dataframe(inputs: list[pd.DataFrame], parms):
     df = inputs[0]
     return df.query(parms['expr'])

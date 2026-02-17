@@ -116,7 +116,7 @@ class MyApp(App):
         self.editor.addCommand(resetEvalContextCmd)
         self.editor.newDoc()
         setupCallbacks(self.editor)
-        self.timestamp = time.process_time()
+        self.timestamp = time.monotonic()
 
     def update(self):
         now = time.monotonic()
