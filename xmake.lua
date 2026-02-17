@@ -535,3 +535,38 @@ task('pytest')
     print("Running tests/pytest.py...")
     os.runv(python, {'tests/pytest.py'}, {envs = envs})
   end)
+
+task('pydemo_test')
+  set_menu({
+    usage = "xmake pydemo_test",
+    description = "Run headless tests for the pydemo example",
+    options = {}
+  })
+  on_run(function ()
+    import("core.project.project")
+    import("core.project.config")
+
+    config.load()
+    os.exec("xmake build ngpy")
+
+    project.load_targets()
+    local target = project.target("ngpy")
+
+    import("lib.detect.find_tool")
+    local python = get_config("python")
+    if not python or python == "auto" or python == "no" then
+      local tool = find_tool("python3") or find_tool("python")
+      if tool then python = tool.program end
+    end
+    if not python then python = "python3" end
+
+    local targetfile = target:targetfile()
+    local dest = path.join(os.projectdir(), "nged", path.filename(targetfile))
+    os.cp(targetfile, dest)
+
+    local envs = {}
+    envs.PYTHONPATH = os.projectdir()
+
+    print("Running examples/pydemo/test_headless.py...")
+    os.runv(python, {'examples/pydemo/test_headless.py'}, {envs = envs})
+  end)

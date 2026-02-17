@@ -829,11 +829,20 @@ try {
 // }}} Arrow
 
 // Graph {{{
+Graph::Graph(NodeGraphDoc* root, Graph* parent, String name)
+    : docRoot_(root), parent_(parent), name_(std::move(name))
+{
+  if (docRoot_)
+    docRoot_->registerGraph_(this);
+}
+
 Graph::~Graph()
 {
-  if (auto doc = docRoot())
+  if (auto doc = docRoot(); doc && !doc->beingDestroyed())
     for (auto id : items_)
       doc->removeItem(id);
+  if (auto doc = docRoot())
+    doc->unregisterGraph_(this);
 }
 
 bool Graph::readonly() const
@@ -2018,15 +2027,12 @@ NodeGraphDoc::NodeGraphDoc(NodeFactoryPtr nodeFactory, GraphItemFactoryPtr itemF
 
 NodeGraphDoc::~NodeGraphDoc()
 {
-  // set graphs as rootless to pervent it from accessing (maybe already destroyed) pool in
-  // destructor
-  pool_.foreach ([](auto itemptr) {
-    if (auto* node = itemptr->asNode()) {
-      if (auto* graph = node->asGraph()) {
-        graph->setRootless();
-      }
-    }
-  });
+  beingDestroyed_ = true;
+  // Detach all graphs from this document so that any graph surviving past
+  // this point (e.g. held by external Python references) won't try to
+  // access the already-destroyed pool.
+  for (auto* g : allGraphs_)
+    g->setRootless();
   root_.reset();
 }
 

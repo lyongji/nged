@@ -771,10 +771,7 @@ protected:
   void rebuildAdjacency();
 
 public:
-  Graph(NodeGraphDoc* root, Graph* parent, String name)
-      : docRoot_(root), parent_(parent), name_(std::move(name))
-  {
-  }
+  Graph(NodeGraphDoc* root, Graph* parent, String name);
   virtual ~Graph();
 
   NodeGraphDoc* docRoot() const { return docRoot_; }
@@ -1010,10 +1007,12 @@ class NodeGraphDoc : public std::enable_shared_from_this<NodeGraphDoc>
 {
   GraphItemPool       pool_;
   NodeGraphDocHistory history_;
+  HashSet<Graph*>     allGraphs_;   // all graphs belonging to this document
   String              savePath_ = "";
   String              title_    = "untitled";
   bool                dirty_    = false;
   bool                readonly_ = false;
+  bool                beingDestroyed_ = false;
   bool                deserializeInplace_ =
     true; // if true, uid will be used for match items in place, otherwise, uids will be new
   GraphItemFactoryPtr     itemFactory_;
@@ -1029,6 +1028,9 @@ protected:
 public:
   Signal<Graph*>                              onGraphModified;
   Signal<Node*, String const&, String const&> onNodeRenamed;
+
+  void registerGraph_(Graph* g)   { allGraphs_.insert(g); }
+  void unregisterGraph_(Graph* g) { allGraphs_.erase(g); }
 
   // before loading / saving content into file, do these transforms
   // filterFileInput expects to return a valid JSON string
@@ -1057,6 +1059,7 @@ public:
   bool       dirty() const { return dirty_; }
   bool       readonly() const { return readonly_; }
   void       setReadonly(bool readonly) { readonly_ = readonly; }
+  bool       beingDestroyed() const { return beingDestroyed_; }
   bool       empty() const { return pool_.count() == 0; }
   bool       everEdited() const
   {

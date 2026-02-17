@@ -406,7 +406,7 @@ public:
   {
     duringDestruction_ = true;
     pyRootGraph = pybind11::none();
-    root_.reset(); // ensures this happens before pyObjects destory
+    root_.reset(); // ensures this happens before pyObjects destroy
     pyObjects.clear();
   }
 };
