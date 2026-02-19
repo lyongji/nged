@@ -1,10 +1,15 @@
 from nged import ItemID, idNone, GraphTraverseResult
 from nged.msghub import trace, debug, warn, error
 from typing import Optional
-from threading import Thread  # TODO: use multiprocessing instead
+import threading
 from enum import Enum
 
-NodeState = Enum('NodeState', ['normal', 'dirty', 'busy', 'error', 'sourcerrror'])
+NodeState = Enum('NodeState', ['clean', 'dirty', 'waiting', 'running', 'error', 'sourceerror'])
+
+# Backward-compatible aliases
+NodeState.normal = NodeState.clean
+NodeState.busy = NodeState.running
+NodeState.sourcerrror = NodeState.sourceerror
 
 
 class SourceError(Exception):
@@ -99,14 +104,13 @@ class GraphEvaluationContext:
     message: dict[ItemID, str]
     busy: bool
     currentNode: ItemID
-    evalThread: Optional[Thread]
+    evalThread: Optional[threading.Thread]
     isPreparing: bool  # if true, the graph is being prepared, this is to avoid recursive prepare
 
     def __init__(self):
         self.destinies = set()
         self.dirtySources = set()
         self.topoDirty = True
-        # self.traverseResult = None
         self.preparedGraph = None
         self.valueCache = {}
         self.stateCache = {}
@@ -118,6 +122,8 @@ class GraphEvaluationContext:
         self.currentNode = idNone
         self.evalThread = None
         self.isPreparing = False
+        self._evalDone = threading.Event()
+        self._evalDone.set()  # initially not busy
 
     def addDestiny(self, destiny):
         if destiny not in self.destinies:
@@ -138,7 +144,7 @@ class GraphEvaluationContext:
             del self.valueCache[nodeid]
 
     def isDirty(self, nodeid, default=True):
-        defaultstate = NodeState.dirty if default else NodeState.normal
+        defaultstate = NodeState.dirty if default else NodeState.clean
         return self.stateCache.get(nodeid, defaultstate) == NodeState.dirty
 
     def updateDirtyFlags(self, graph):
@@ -236,18 +242,15 @@ class GraphEvaluationContext:
         self.ignoredInput.add((nodeid, i))
 
     def getResult(self, nodeid: ItemID) -> any:
-        # trace(f'getResult({nodeid})')
-        # ac = self.traverseResult.find(nodeid)
-        # assert ac.valid, f'cannot find node {nodeid} in traverse result'
-        # node = ac.node
         pnode = self.preparedGraph.getNode(nodeid)
-        if self.stateCache.get(nodeid, NodeState.dirty) != NodeState.normal:
-            self.stateCache[nodeid] = NodeState.busy
+        if self.stateCache.get(nodeid, NodeState.dirty) != NodeState.clean:
+            self.stateCache[nodeid] = NodeState.running
+            self.currentNode = nodeid
             try:
                 executor = pnode.executor
                 result = executor.execute(pnode.parms, self)
             except SourceError:
-                self.stateCache[nodeid] = NodeState.sourcerrror
+                self.stateCache[nodeid] = NodeState.sourceerror
                 raise
             except Exception as e:
                 self.stateCache[nodeid] = NodeState.error
@@ -255,11 +258,11 @@ class GraphEvaluationContext:
                 raise SourceError(f'error evaluating {pnode.name}: {e}')
             trace(f'eval {pnode.name} -> {result}')
             self.valueCache[nodeid] = result
-            self.stateCache[nodeid] = NodeState.normal
+            self.stateCache[nodeid] = NodeState.clean
         else:
             result = self.valueCache[nodeid]
             trace(f'cached {pnode.name} -> {result}')
-        self.stateCache[nodeid] = NodeState.normal
+        self.currentNode = idNone
         return result
 
     def getCache(self, nodeid):
@@ -277,6 +280,11 @@ class GraphEvaluationContext:
             if self.isDirty(dest):
                 dirtyDestinies.add(doc.getItem(dest).id)
         if len(dirtyDestinies) > 0:
+            # Mark all dirty nodes as waiting before starting the eval thread
+            for pnode in self.preparedGraph.nodes:
+                if self.stateCache.get(pnode.nodeid, NodeState.dirty) == NodeState.dirty:
+                    self.stateCache[pnode.nodeid] = NodeState.waiting
+
             def updateDestinies():
                 try:
                     for nodeid in dirtyDestinies:
@@ -284,15 +292,28 @@ class GraphEvaluationContext:
                 except Exception as err:
                     error(f'caught execption:{err}')
                     for ac in self.preparedGraph.nodes:
-                        if self.stateCache[ac.nodeid] == NodeState.busy:
+                        state = self.stateCache.get(ac.nodeid)
+                        if state in (NodeState.running, NodeState.waiting):
                             self.stateCache[ac.nodeid] = NodeState.error
-                doc.readonly = False
-                self.busy = False
+                finally:
+                    doc.readonly = False
+                    self.busy = False
+                    self._evalDone.set()
+
             doc.readonly = True
             self.busy = True
-            #self.evalThread = Thread(target=updateDestinies)
-            #self.evalThread.start()
-            updateDestinies()
+            self._evalDone.clear()
+            self.evalThread = threading.Thread(target=updateDestinies, daemon=True)
+            self.evalThread.start()
+
+    def waitForCompletion(self, timeout=None):
+        """Block until evaluation finishes."""
+        return self._evalDone.wait(timeout=timeout)
+
+    def evaluateSync(self, doc, root=None):
+        """Evaluate and block until complete. For tests and headless scripts."""
+        self.evaluate(doc, root)
+        self.waitForCompletion()
 
     def push(self):
         self.stateStack.append(self.stateCache)
@@ -306,4 +327,4 @@ class GraphEvaluationContext:
 
     def putValue(self, nodeid: ItemID, value):
         self.valueCache[nodeid] = value
-        self.stateCache[nodeid] = NodeState.normal
+        self.stateCache[nodeid] = NodeState.clean

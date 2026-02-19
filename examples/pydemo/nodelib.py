@@ -392,7 +392,7 @@ class OutputNode(IONode):
 
     @staticmethod
     def headof(inputs, parms):
-        return inputs[0]
+        return inputs[0] if inputs else None
 
     def getExecutor(self):
         return ImmediateFunctorExecutor(self.id, OutputNode.headof)
@@ -508,7 +508,7 @@ class DefineFunction(MyNode):
         dirty = context.isDirty(outputid)
         if dirty:
             for id in context.stateCache:
-                context.stateCache[id] = NodeState.normal
+                context.stateCache[id] = NodeState.clean
         
         return dirty
 

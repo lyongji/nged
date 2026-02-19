@@ -85,6 +85,10 @@ class MyNode(Node):
         font=Canvas.FontFamily.Icon,
         color=0xFFEB3BFF,
         valign=Canvas.VerticalAlign.Top)
+    waitingMarkStyle = Canvas.TextStyle(
+        font=Canvas.FontFamily.Icon,
+        color=0x90CAF9FF,
+        valign=Canvas.VerticalAlign.Top)
     uidMarkStyle = Canvas.TextStyle(
         color=0x66666666,
         size=Canvas.FontSize.Small)
@@ -115,16 +119,18 @@ class MyNode(Node):
         style = None
         ctx = getContext(self.graph)
         if ctx is not None:
-            state = ctx.stateCache.get(self.id, NodeState.normal)
+            nodestate = ctx.stateCache.get(self.id, NodeState.clean)
         else:
-            state = NodeState.dirty
-        if state == NodeState.error:
+            nodestate = NodeState.dirty
+        if nodestate == NodeState.error:
             icon, style = ICON_FA_EXCLAMATION_TRIANGLE, self.errorMarkStyle
-        elif state == NodeState.sourcerrror:
+        elif nodestate == NodeState.sourceerror:
             icon, style = ICON_FA_TIMES, self.warningMarkStyle
-        elif state == NodeState.busy:
+        elif nodestate == NodeState.running:
             icon, style = ICON_FA_HOURGLASS_HALF, self.evaluateMarkStyle
-        elif state == NodeState.dirty:
+        elif nodestate == NodeState.waiting:
+            icon, style = ICON_FA_CLOCK, self.waitingMarkStyle
+        elif nodestate == NodeState.dirty:
             icon, style = ICON_FA_SYNC, self.dirtyMarkStyle
         if icon and style is not None:
             canvas.drawText(iconpos, icon, style)

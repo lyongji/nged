@@ -94,7 +94,7 @@ def full_eval(doc):
     """Run a full evaluation through the root output node."""
     ctx = doc.evalContext
     ctx.addDestiny(doc.root.outputnode.id)
-    ctx.evaluate(doc)
+    ctx.evaluateSync(doc)
     return ctx.getCache(doc.root.outputnode.id)
 
 
@@ -475,7 +475,7 @@ def test_error_state_on_exception():
     g.setLink(code.id, 0, g.outputnode.id, 0)
 
     ctx.addDestiny(g.outputnode.id)
-    ctx.evaluate(doc)
+    ctx.evaluateSync(doc)
 
     # The code node should be in error state
     check_eq(ctx.stateCache.get(code.id), NodeState.error,
@@ -499,12 +499,12 @@ def test_source_error_propagation():
     g.setLink(passthrough.id, 0, g.outputnode.id, 0)
 
     ctx.addDestiny(g.outputnode.id)
-    ctx.evaluate(doc)
+    ctx.evaluateSync(doc)
 
     check_eq(ctx.stateCache.get(bad.id), NodeState.error,
              "upstream node in error state")
-    check_eq(ctx.stateCache.get(passthrough.id), NodeState.sourcerrror,
-             "downstream node in sourcerrror state")
+    check_eq(ctx.stateCache.get(passthrough.id), NodeState.sourceerror,
+             "downstream node in sourceerror state")
 
 
 def test_error_does_not_corrupt_cache():
@@ -518,7 +518,7 @@ def test_error_does_not_corrupt_cache():
     g.setLink(code.id, 0, g.outputnode.id, 0)
 
     ctx.addDestiny(g.outputnode.id)
-    ctx.evaluate(doc)
+    ctx.evaluateSync(doc)
     check_eq(ctx.stateCache.get(code.id), NodeState.error, "initial error")
 
     # Fix the node
@@ -526,11 +526,11 @@ def test_error_does_not_corrupt_cache():
     code.executor = None  # force recompile
     ctx.addDirtySource(code.id)
 
-    ctx.evaluate(doc)
+    ctx.evaluateSync(doc)
     check_eq(ctx.getCache(g.outputnode.id), 100,
              "after fix, output should be 100")
-    check_eq(ctx.stateCache.get(code.id), NodeState.normal,
-             "fixed node should be normal")
+    check_eq(ctx.stateCache.get(code.id), NodeState.clean,
+             "fixed node should be clean")
 
 
 # ---------------------------------------------------------------------------
@@ -563,6 +563,7 @@ def test_remove_link():
     """Removing a link disconnects nodes, input becomes None."""
     doc = make_doc()
     g = doc.root
+    ctx = doc.evalContext
 
     e = g.createNode('expression')
     e.parm('expr').set('5')
@@ -571,6 +572,7 @@ def test_remove_link():
 
     g.removeLink(g.outputnode.id, 0)
     getContext(g).topoDirty = True
+    ctx.addDirtySource(g.outputnode.id)
 
     # Output node does `return inputs[0]`, which will be None
     result = full_eval(doc)
@@ -804,7 +806,7 @@ def test_context_push_pop():
     fake_id = doc.root.createNode('expression').id
 
     ctx.valueCache[fake_id] = "outer"
-    ctx.stateCache[fake_id] = NodeState.normal
+    ctx.stateCache[fake_id] = NodeState.clean
 
     ctx.push()
     check_eq(ctx.valueCache, {}, "after push, value cache is empty")
@@ -814,7 +816,7 @@ def test_context_push_pop():
     ctx.pop()
 
     check_eq(ctx.valueCache[fake_id], "outer", "after pop, outer value restored")
-    check_eq(ctx.stateCache[fake_id], NodeState.normal, "after pop, outer state restored")
+    check_eq(ctx.stateCache[fake_id], NodeState.clean, "after pop, outer state restored")
 
 
 def test_context_dirty_tracking():
@@ -829,7 +831,7 @@ def test_context_dirty_tracking():
     ctx.stateCache[fake_id] = NodeState.dirty
     check(ctx.isDirty(fake_id), "explicitly dirty -> dirty")
 
-    ctx.stateCache[fake_id] = NodeState.normal
+    ctx.stateCache[fake_id] = NodeState.clean
     check(not ctx.isDirty(fake_id), "normal -> not dirty")
 
 
@@ -841,7 +843,7 @@ def test_context_put_value():
 
     ctx.putValue(fake_id, "hello")
     check_eq(ctx.valueCache[fake_id], "hello", "putValue stores value")
-    check_eq(ctx.stateCache[fake_id], NodeState.normal, "putValue sets state to normal")
+    check_eq(ctx.stateCache[fake_id], NodeState.clean, "putValue sets state to clean")
 
 
 def test_context_clear_cache():
@@ -920,7 +922,7 @@ def test_reevaluation_only_dirty():
     e1.executor = None
     ctx.addDirtySource(e1.id)
 
-    ctx.evaluate(doc)
+    ctx.evaluateSync(doc)
     check_eq(ctx.getCache(g.outputnode.id), 21, "20 + 1 = 21 after re-eval")
 
 
@@ -961,19 +963,19 @@ def test_multiple_evals_same_context():
     g.setLink(e.id, 0, g.outputnode.id, 0)
 
     ctx.addDestiny(g.outputnode.id)
-    ctx.evaluate(doc)
+    ctx.evaluateSync(doc)
     check_eq(ctx.getCache(g.outputnode.id), 1, "first eval: 1")
 
     e.parm('expr').set('2')
     e.executor = None  # headless: must manually clear
     ctx.addDirtySource(e.id)
-    ctx.evaluate(doc)
+    ctx.evaluateSync(doc)
     check_eq(ctx.getCache(g.outputnode.id), 2, "second eval: 2")
 
     e.parm('expr').set('3')
     e.executor = None
     ctx.addDirtySource(e.id)
-    ctx.evaluate(doc)
+    ctx.evaluateSync(doc)
     check_eq(ctx.getCache(g.outputnode.id), 3, "third eval: 3")
 
 

@@ -121,8 +121,9 @@ class DataView(View):
         if doUpdate and not ctx.busy:
             ctx.addDestiny(node.id)
             ctx.evaluate(node.graph.doc)
-            # ctx.prepare(node.graph)
-            # viewingData = ctx.getResult(node)
+
+        if ctx.busy:
+            ImGui.Text("Evaluating...")
 
         viewingData = ctx.valueCache.get(node.id, None)
         self.drawData(viewingData)
