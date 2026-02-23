@@ -635,7 +635,7 @@ void CommandManager::checkShortcut(GraphView* view)
             return true;
         return false;
       };
-      if (cmd->view() == "*" || view && matchkind(view)) {
+      if (cmd->view() == "*" || (view && matchkind(view))) {
         if (Shortcut::check(cmd->shortcut())) {
           auto const key = asciiToImGuiKey(cmd->shortcut().key);
           msghub::infof("shortcut for command {} triggered", cmd->name());
@@ -765,7 +765,7 @@ void CommandManager::update(GraphView* view)
             return true;
         return false;
       };
-      if (!cmd->hiddenInMenu() && (cmd->view() == "*" || view && matchkind(view))) {
+      if (!cmd->hiddenInMenu() && (cmd->view() == "*" || (view && matchkind(view)))) {
         cmdDescList.push_back(cmd->description());
         cmdList.push_back(cmd);
       }
@@ -1233,16 +1233,13 @@ public:
         ImGui::TextUnformatted("Presented to you by iiif.");
         ImGui::TextUnformatted("");
         ImGui::TextUnformatted("With great help of following open source libraries:");
-        Vector<String> libs = {"boxer", "doctest", "imgui", "lua", "miniz", "nativefiledialog", "nlohmann json", "parallel_hashmap", "parmscript", "pybind11", "python", "sol2", "spdlog", "subprocess.h", "stduuid"};
-        for (auto&& lib: libs) {
-          if (ImGui::CollapsingHeader(lib.c_str())) {
-            if (auto itr = licenses_.find(lib); itr != licenses_.end()) {
-              ImGui::Indent(16);
-              ImGui::PushFont(ImGuiResource::instance().monoFont);
-              ImGui::TextUnformatted(itr->second.c_str());
-              ImGui::PopFont();
-              ImGui::Unindent(16);
-            }
+        for (auto&& [key, value]: licenses_) {
+          if (ImGui::CollapsingHeader(key.c_str())) {
+            ImGui::Indent(16);
+            ImGui::PushFont(ImGuiResource::instance().monoFont);
+            ImGui::TextUnformatted(value.c_str());
+            ImGui::PopFont();
+            ImGui::Unindent(16);
           }
         }
         ImGui::EndTabItem();
@@ -1429,7 +1426,7 @@ static DockLayoutNode parseLayoutDescription(std::string_view desc)
     if (parts.size()>2 && parts[2]=="hide_tab_bar")
       hide_tab_bar = true;
 
-    outnode = {split, name, hide_tab_bar, weight };
+    outnode = {split, name, hide_tab_bar, weight, {}};
 
     if (!nextline(current_line, indent, line))
       return false;
