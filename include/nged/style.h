@@ -31,6 +31,20 @@ struct UIStyle
   float    commandPaletteWidthRatio = 0.75f; // width / parent window width
   float    groupboxHeaderHeight     = 16.f;
 
+  // Font Paths (empty strings use embedded fonts)
+  std::string fontSansSerifPath;
+  std::string fontMonoPath;
+  std::string fontIconPath;
+
+  // Font Rendering Settings (Dear ImGui 1.92+)
+  // OversampleH/V: Higher values produce crisper text but require more texture memory
+  int fontOversampleH = 2;
+  int fontOversampleV = 1;
+  // PixelSnapH: Align glyphs to pixel boundaries for sharper look (good for UI text)
+  bool fontPixelSnapH = true;
+  // MergeMode: Enable/disable font merging (combining multiple font sources)
+  bool fontMergeEnabled = true;
+
 public:
   static UIStyle& instance();
   void save();

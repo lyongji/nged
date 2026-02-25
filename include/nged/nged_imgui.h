@@ -31,11 +31,9 @@ class ImGuiResource
   static ImGuiResource instance_;
 
 public:
-  ImFont* sansSerifFont      = nullptr;
-  ImFont* monoFont           = nullptr;
-  ImFont* iconFont           = nullptr;
-  ImFont* largeSansSerifFont = nullptr;
-  ImFont* largeIconFont      = nullptr;
+  ImFont* sansSerifFont = nullptr;
+  ImFont* monoFont      = nullptr;
+  ImFont* iconFont      = nullptr;
 
   static ImGuiResource const& instance() { return instance_; }
   static void                 reloadFonts();

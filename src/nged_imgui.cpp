@@ -290,31 +290,21 @@ namespace detail {
 void reloadImGuiFonts(
   ImFont*& sansSerif,
   ImFont*& mono,
-  ImFont*& icon,
-  ImFont*& large,
-  ImFont*& largeIcon);
+  ImFont*& icon);
 }
 
 ImGuiResource ImGuiResource::instance_;
 
 ImFont* ImGuiResource::getBestMatchingFont(Canvas::TextStyle const& style, float scale) const
 {
-  float const size = Canvas::floatFontSize(style.size) * scale;
-  auto const& ui   = UIStyle::instance();
+  auto const& ui = UIStyle::instance();
   if (style.font == Canvas::FontFamily::Icon) {
-    if (size >= ui.normalFontSize * 1.4f && largeIconFont)
-      return largeIconFont;
-    else
-      return iconFont;
+    return iconFont;
   } else if (style.font == Canvas::FontFamily::Mono) {
     return monoFont;
   } else {
-    if (size >= ui.normalFontSize * 1.4f && largeSansSerifFont)
-      return largeSansSerifFont;
-    else
-      return sansSerifFont;
+    return sansSerifFont;
   }
-  return nullptr;
 }
 
 void ImGuiResource::reloadFonts()
@@ -322,9 +312,7 @@ void ImGuiResource::reloadFonts()
   reloadImGuiFonts(
     instance_.sansSerifFont,
     instance_.monoFont,
-    instance_.iconFont,
-    instance_.largeSansSerifFont,
-    instance_.largeIconFont);
+    instance_.iconFont);
 }
 // }}} Shared Resource
 
@@ -1219,7 +1207,7 @@ public:
   {
     auto* drawlist = ImGui::GetWindowDrawList();
     auto  windowsize = ImGui::GetContentRegionAvail();
-    auto* font = ImGuiResource::instance().largeSansSerifFont;
+    auto* font = ImGuiResource::instance().sansSerifFont;
     auto* title = "NGED - a Node Graph EDitor";
     auto  fontsize = 20.f * dpiScale();
     auto  textsize = font->CalcTextSizeA(fontsize, FLT_MAX, 0.f, title);
