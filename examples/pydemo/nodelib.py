@@ -48,7 +48,7 @@ make_fixed_code_node('all', 'all(inputs[0])', 1, 1)
 make_fixed_code_node('str', 'str(inputs[0])', 1, 1)
 make_fixed_code_node('range', 'list(range(parms["range"][0], parms["range"][1], parms["step"]))',
                      0, 1, 'int2 "range" {min=0, max=100, default={0,10}} int "step" {default=1, min=-10, max=10}')
-
+make_fixed_code_node('str_list', '[p["str"] for p in parms["list"]]', 0, 1, 'list "list" {} text "str" endlist "list"')
 
 @register_function_as_node(
     NodeDesc('filter', 'filter', iconData=ICON_FA_FILTER,
