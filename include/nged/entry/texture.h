@@ -4,20 +4,6 @@
 
 #include <stdint.h>
 #include <memory>
-#include <vector>
-
-#if defined(NGED_BACKEND_DX11)
-#include <d3d11.h>
-#elif defined(NGED_BACKEND_DX12)
-#include <d3d12.h>
-#elif defined(NGED_BACKEND_VULKAN)
-#include <vulkan/vulkan.hpp>
-#endif
-
-
-#ifndef NGED_MAX_NUM_TEXTURES
-#define NGED_MAX_NUM_TEXTURES (1024-1) // 1 is reserved for font texture
-#endif
 
 namespace nged {
 
@@ -36,35 +22,6 @@ public:
   void release();
   ImTextureID id() const;
 };
-
-template <class TextureResourceImpl>
-class TextureResourcePool
-{
-  TextureResourceImpl resources_[NGED_MAX_NUM_TEXTURES];
-  std::vector<size_t> freeIndices_;
-public:
-  TextureResourcePool()
-  {
-    for (size_t i = 0; i < NGED_MAX_NUM_TEXTURES; ++i)
-      freeIndices_.push_back(i);
-  }
-  TextureResourceImpl* allocate()
-  {
-    if (freeIndices_.empty())
-      return nullptr;
-    size_t index = freeIndices_.back();
-    freeIndices_.pop_back();
-    return &resources_[index];
-  }
-  void free(TextureResourceImpl* resource)
-  {
-    size_t index = resource - resources_;
-    freeIndices_.push_back(index);
-  }
-  TextureResourceImpl& getResource(size_t index) { return resources_[index]; }
-  ptrdiff_t getIndex(TextureResourceImpl* resource) { return resource - resources_; }
-};
-
 
 enum class AddressMode
 {

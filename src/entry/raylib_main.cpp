@@ -9,9 +9,9 @@ namespace nged {
 
 static nged::App* theApp = nullptr;
 
-static int startMainLoop()
+static void startMainLoop()
 {
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_HIGHDPI);
     InitWindow(1280, 720, theApp->title());
     SetTargetFPS(60);
     SetExitKey(0);
@@ -22,14 +22,13 @@ static int startMainLoop()
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
-    ImGui::StyleColorsDark();
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.WindowRounding = 0.0f;
-    style.Colors[ImGuiCol_WindowBg].w = 1.0f;
-
     ImGui_ImplRaylib_Init();
 
     theApp->init();
+
+    // Auto DPI scaling
+    auto dpi = GetWindowScaleDPI();
+    ImGui::GetStyle().ScaleAllSizes(dpi.x);
 
     while (!WindowShouldClose())
     {
@@ -47,7 +46,6 @@ static int startMainLoop()
         EndDrawing();
     }
 
-    // raylib: agreeToQuit is informational (WindowShouldClose is one-way)
     theApp->agreeToQuit();
     theApp->quit();
 
@@ -55,8 +53,6 @@ static int startMainLoop()
     ImGui::DestroyContext();
 
     CloseWindow();
-
-    return 0;
 }
 
 void startApp(nged::App* app)

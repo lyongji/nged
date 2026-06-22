@@ -87,6 +87,7 @@ target('boxer')
 
 -- s7
 target('s7')
+  add_defines('_GNU_SOURCE', 'sigjmp_buf=jmp_buf')
   set_kind('static')
   add_includedirs('deps/s7', {public=true})
   add_includedirs('examples/ngs7')

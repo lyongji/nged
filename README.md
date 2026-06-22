@@ -1,222 +1,47 @@
 NGED: A **N**ode **G**raph **ED**itor
 =====================================
 
-This is the result of my attempt to make an easy to use, myself-friendly node graph editor.
+A standalone, customizable, cross-platform node graph editor built with C++17, Dear ImGui (docking) and Raylib.
 
-Core components of this project are `ngdoc.h` (node graph document) and `nged.h` (node graph editor), and with this project comes with two demos, which in hope will give you some basic ideas of what they can do - if you are also looking for a node graph editor that is standalone, customizable, scriptable, efficient, beautiful, ergonomic and cross-platform.
+Core components: `ngdoc.h` (node graph document) and `nged.h` (node graph editor).
 
-* [visual s7](examples/ngs7/) is lisp visualized in form of node graph, it looks like this:
-  ![ngs7](screenshots/Snipaste_s7.png)
+* [demo](examples/demo/) — minimal C++ example
+* [visual s7](examples/ngs7/) — Lisp visualized as node graph
 
-* [pydemo](examples/pydemo/) is a functional python scripting environment, it looks like this:
-  ![pydemo](screenshots/Snipaste_2023-09-29_00-07-44.png)
-
-What they share in common is the beautiful UI and friendly operations.
-
-## Features
-
-### Cross platform
-
-Tested on:
-
-* Windows 10 x64
-* Windows 11 x64
-* Ubuntu 22 x64
-* Debian 12 (WSL)
-* Raspberry Pi OS Arm
-* MacOS Sonoma (M3 Arm64)
-
-### Nice looking link paths
-
-![linkpath](screenshots/GIF_linkpath.gif)
-
-dense or sparse, it's easy to keep track on the relationship of nodes and links:
-
-![path-eg1](screenshots/path-eg1.png)
-
-![path-eg2](screenshots/path-eg2.png)
-
-### Fuzzy search
-
-![fuzzy-search](screenshots/GIF_fuzzysearch.gif)
-
-### Routers
-
-![router](screenshots/GIF_router.gif)
-
-### Groups, Comments, Arrows and Tints
-
-![comment_and_tint](screenshots/GIF_comment_and_tint.gif)
-
-### Subgraphs
-
-![subgraph](screenshots/GIF_subgraph.gif)
-
-### Multiple views on one graph
-
-![multiview](screenshots/GIF_multiview.gif)
-
-### Focus
-
-![focus](screenshots/GIF_focus.gif)
-
-// press `F` to focus selection; or with nothing selected, press `F` to focus the entire graph
-
-### Cut links with stroke
-
-![cut](screenshots/GIF_cut_stroke.gif)
-
-// press `Y` to cut links
-
-### Drag links, Swap links
-
-![edit_link](screenshots/GIF_edit_link.gif)
-
-// drag link with `Shift` pressed, the link will be swaped if the drop target has existing link
-
-### Find node
-
-![find_node](screenshots/GIF_fuzzysearch_node.gif)
-
-### Select, add to selection, remove from selection
-
-![selection](screenshots/GIF_adv_select.gif)
-
-### Type checking
-
-![type check](screenshots/GIF_typecheck.gif)
-
-### Highlight node color / highlight pin color (type hinting)
-
-![link color](screenshots/GIF_linkcolor.gif)
-
-
-### Command palette
-
-![valign](screenshots/GIF_cmd_valign.gif)
-
-### Recursion (only for python demo)
-
-![recursion](screenshots/recursion.png)
-
-### Parmscript (only for python demo)
-
-It's worth mention this other side project of mine: [parmscript](https://github.com/hugeproblem/parmscript)
-
-With this, it's very easy to customize parameter interface on each node, and it can handle serialization / deserialization / evaluate to & from Python with no extra effort.
-
-![parmscript](screenshots/GIF_parmscript.gif)
-
-### Other
-
-* Undo, Redo
-* Copy, Paste
-* Read-only view
-* Headless (doc without UI and editor is fully functional)
-
-### Limits
-
-* One input pin can connect to at most _one_ output pin.
-  And I think this is the correct way - if you do want to connect multiple links into one input,
-  you should always declare the logic between those multiple inputs, like `or`, `and`, `merge` &etc. - and by adding another node, this can be done.
-
------
+---
 
 ## Building
 
-### Requirements:
+### Requirements
 
 * [xmake](https://xmake.io/)
-* A C++17 compatible compiler, tested on
-  * MSVC 2017
-  * MSVC 2019
-  * Clang 14
-  * Clang 15
-  * GCC 11.4
-* python & setuptools & pip, if you need the python binding and/or the pydemo
-
-### To build:
+* C++17 compiler (MSVC 2019+, Clang 14+, GCC 11+)
 
 ```bash
-> xmake
+xmake && ./build/linux/x86_64/release/demo
 ```
 
-### Python Bindings & Tests
+---
 
-There are two ways to build the Python bindings:
+## Features
 
-#### 1. Installation (Recommended for Users)
+* Nodes & Links, Subgraphs, Routers
+* Fuzzy search, command palette
+* Groups, Comments, Arrows
+* Undo / Redo, Copy / Paste
+* Multiple views on one graph
+* Type checking with color hints
+* Headless mode (doc without UI)
 
-If you just want to install the package (with automatic type stub generation via CMake):
-
-```bash
-> pip install .
-```
-
-#### 2. Development & Testing (Recommended for Contributors)
-
-For rapid iteration and testing without reinstalling, use `xmake`:
-
-```bash
-# Build and run python tests
-> xmake pytest
-```
-
-Note: `xmake pytest` automatically builds the `ngpy` extension, copies it to the `nged/` directory, and runs `tests/pytest.py` with the correct environment.
-
-To run tests manually with xmake artifacts:
-
-```bash
-> xmake build ngpy
-# Copy the built extension (e.g., ngpy.cpython-312-darwin.so) to nged/
-> cp build/macosx/arm64/release/ngpy.*.so nged/
-> PYTHONPATH=. python3 tests/pytest.py
-```
-
-### Type Stubs
-
-If installed via `pip install .`, type stubs (`.pyi`) are generated and installed automatically.
-
-If using `xmake`, you can generate them manually for better IDE support:
-
-```bash
-> PYTHONPATH=. python3 scripts/build_stubs.py
-```
-
-This will generate `nged/ngpy.pyi` containing type definitions for all bound classes.
-
-### Options:
-
-Graphic backend can be choosen between
-
-* DirectX 11 (default for windows)
-* DirectX 12
-* OpenGL 3
-* OpenGL 2 (default for non-windows)
-* Vulkan
-
-to config:
-
-```
-> xmake f --backend=(dx11|dx12|gl3|gl2|vulkan)
-```
-
-## Development
-
-If you want to dive into the code, and/or make contribution,
-it's strongly adviced to use `(neo|g)?vim` editor with `foldmethod=marker` and `foldmarker={{{,}}}` set,
-otherwise the code look will likely to be not as tidy:
-
-![gvim](screenshots/code_with_gvim.png)
-
-and please respect `.editorconfig` and `.clang-format`
-
-_tips: `xmake project -k compile_commands` can generate `compile_commands.json` for C++ LSPs._
-
+---
 
 ## To Make Your Own NodeGraph
 
-Refer to [examples/demo/main.cpp](examples/demo/main.cpp) as the starting point.
+See [examples/demo/main.cpp](examples/demo/main.cpp). Define your `NodeFactory` and go.
 
-Basically, define your own `NodeFactory`, and off you go.
-
+```cpp
+class MyNodeFactory : public nged::NodeFactory {
+  nged::NodePtr createNode(nged::Graph* parent, std::string_view type) const override { ... }
+  void listNodeTypes(...) const override { ... }
+};
+```

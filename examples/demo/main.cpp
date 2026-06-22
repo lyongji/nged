@@ -16,7 +16,6 @@
 
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>
-#include <misc/cpp/imgui_stdlib.cpp>
 
 #include <chrono>
 
@@ -141,7 +140,6 @@ class DemoApp: public nged::App
 #endif
     spdlog::set_level(spdlog::level::trace);
 
-    ImGui::GetIO().IniFilename = nullptr; // disable window size/pos/layout store
 
     App::init();
 
