@@ -156,3 +156,77 @@ xmake run tests          # 运行测试
 - 一个输入引脚最多一根连线
 - 子图：`Node::asGraph()` 返回嵌套 `Graph`
 - CJK 输入：demo 在 `reloadFonts()` 后合并 MapleMono-CN（1.92 动态字体系统）
+
+---
+
+## 使用文档
+
+详细操作指南见 `README.md`。以下为架构层面的使用要点。
+
+### 数据流
+
+```
+NodeFactory::createNode() → Graph::add() → doc 通知视图更新
+用户操作 → InteractionState → Command → Graph API → Signal 发出 → 视图刷新
+```
+
+### 自定义节点
+
+继承 `Node` 并重写关键方法：
+
+```cpp
+class MyNode : public nged::Node {
+  sint numMaxInputs() const override { return 2; }   // 输入引脚数（<0 表示不限制）
+  sint numOutputs() const override { return 1; }     // 输出引脚数
+  bool acceptInput(sint port, Node const* src, sint srcPort) const override {
+    return true; // 类型检查逻辑
+  }
+  void draw(Canvas* canvas, GraphItemState state) const override {
+    Node::draw(canvas, state); // 默认绘制，可叠加自定义内容
+  }
+};
+```
+
+### 自定义交互
+
+```cpp
+class MyState : public NetworkView::NamedInteractionState<MyState> {
+  static constexpr StringView className = "my-state";
+  int  priority() const override { return 50; }
+  bool shouldEnter(NetworkView const* view) const override { /* 触发条件 */ }
+  bool update(NetworkView* view) override { /* 每帧逻辑 */ }
+};
+// 注册：MyState::registerInteraction<MyState>();
+```
+
+### 事件系统
+
+```cpp
+// 订阅事件
+auto handle = editor->events().onItemSelected.connect([](NetworkView* v, GraphItem* item) {
+  // item 被选中
+});
+// 取消订阅
+editor->events().onItemSelected.disconnect(handle);
+```
+
+### 自定义命令
+
+```cpp
+editor->commandManager().add(new CommandManager::SimpleCommand{
+  "MyCommand/DoSomething",    // 名称（显示在命令面板）
+  "执行某个操作",              // 描述
+  [](GraphView* view, StringView args) { /* 操作 */ },
+  Shortcut{'D', ModKey::CTRL}, // 快捷键
+  "network"                    // 生效视图（* 表示全局）
+});
+```
+
+### 无头模式
+
+```cpp
+auto doc = std::make_shared<NodeGraphDoc>(nodeFactory, itemFactory);
+doc->makeRoot();
+auto node = doc->root()->createNode("type");
+// ... 操作 graph，无需 UI
+```

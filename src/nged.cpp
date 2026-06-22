@@ -621,7 +621,7 @@ void NetworkView::addCommands(CommandManager* mgr)
 {
   mgr->add(new CommandManager::SimpleCommand{
     "View/FocusSelection",
-    "Focus Selected ...",
+    "聚焦选中",
     [](GraphView* view, StringView args) {
       auto* netview = static_cast<NetworkView*>(view);
       netview->zoomToSelected(0.2);
@@ -631,7 +631,7 @@ void NetworkView::addCommands(CommandManager* mgr)
 
   mgr->add(new CommandManager::SimpleCommand{
     "Edit/VerticalAlign",
-    "Vertical Align",
+    "垂直对齐",
     [](GraphView* view, StringView args) {
       assert(view->kind() == "network");
       auto* nv  = static_cast<NetworkView*>(view);
@@ -661,7 +661,7 @@ void NetworkView::addCommands(CommandManager* mgr)
 
   mgr->add(new CommandManager::SimpleCommand{
     "Edit/HorizontalAlign",
-    "Horizontal Align",
+    "水平对齐",
     [](GraphView* view, StringView args) {
       assert(view->kind() == "network");
       auto* nv  = static_cast<NetworkView*>(view);
@@ -691,7 +691,7 @@ void NetworkView::addCommands(CommandManager* mgr)
 
   mgr->add(new CommandManager::SimpleCommand{
     "Edit/SelectAll",
-    "Select All",
+    "全选",
     [](GraphView* view, StringView) {
       assert(view->kind() == "network");
       auto*       nv  = static_cast<NetworkView*>(view);
@@ -705,10 +705,10 @@ void NetworkView::addCommands(CommandManager* mgr)
     "network"}).setMayModifyGraph(false);
 
   mgr->add(new CommandManager::SimpleCommand{
-    "Edit/Copy", "Copy", copyToClipboard, Shortcut{'C', ModKey::CTRL}, "network"}).setMayModifyGraph(false);
+    "Edit/Copy", "复制", copyToClipboard, Shortcut{'C', ModKey::CTRL}, "network"}).setMayModifyGraph(false);
   mgr->add(new CommandManager::SimpleCommand{
     "Edit/Cut",
-    "Cut",
+    "剪切",
     [](GraphView* view, StringView) {
       assert(view->kind() == "network");
       copyToClipboard(view, "");
@@ -722,7 +722,7 @@ void NetworkView::addCommands(CommandManager* mgr)
     "network"});
   mgr->add(new CommandManager::SimpleCommand{
     "Edit/Paste",
-    "Paste",
+    "粘贴",
     [](GraphView* view, StringView) {
       assert(view->kind() == "network");
       if (auto text = view->editor()->getClipboardText(); !text.empty()) {
@@ -731,7 +731,7 @@ void NetworkView::addCommands(CommandManager* mgr)
             static_cast<NetworkView*>(view)->pasteFrom(json);
           }
         } catch (Json::parse_error&) {
-          msghub::warn("not valid node graph data");
+          msghub::warn("无效的节点图数据");
         }
       }
     },
@@ -740,7 +740,7 @@ void NetworkView::addCommands(CommandManager* mgr)
 
   mgr->add(new CommandManager::SimpleCommand{
     "Edit/Delete",
-    "Delete Selection",
+    "删除选中",
     [](GraphView* view, StringView) {
       assert(view->kind() == "network");
       auto&& selection = static_cast<NetworkView*>(view)->selectedItems();
@@ -753,7 +753,7 @@ void NetworkView::addCommands(CommandManager* mgr)
 
   mgr->add(new CommandManager::SimpleCommand{
     "Edit/GoToParent",
-    "Go To Parent Graph",
+    "回到父图",
     [](GraphView* view, StringView) {
       assert(view->kind() == "network");
       if (view->graph() != view->doc()->root() && view->graph()->parent()) {
@@ -768,7 +768,7 @@ void NetworkView::addCommands(CommandManager* mgr)
 
   mgr->add(new CommandManager::SimpleCommand{
     "View/ToggleDisplayTypeHint",
-    "Toggle Display Type Hint",
+    "切换类型提示",
     [](GraphView* view, StringView) {
       assert(view->kind() == "network");
       auto* nv = static_cast<NetworkView*>(view);
@@ -779,7 +779,7 @@ void NetworkView::addCommands(CommandManager* mgr)
 
   mgr->add(new CommandManager::SimpleCommand{
     "Navigate/Up",
-    "Go to Upstream Node",
+    "跳到上游节点",
     [](GraphView* view, StringView args) {
       static_cast<NetworkView*>(view)->navigate(NetworkView::NavDirection::Up);
     },
@@ -788,7 +788,7 @@ void NetworkView::addCommands(CommandManager* mgr)
 
   mgr->add(new CommandManager::SimpleCommand{
     "Navigate/Down",
-    "Go to Downstream Node",
+    "跳到下游节点",
     [](GraphView* view, StringView args) {
       static_cast<NetworkView*>(view)->navigate(NetworkView::NavDirection::Down);
     },
@@ -797,7 +797,7 @@ void NetworkView::addCommands(CommandManager* mgr)
 
   mgr->add(new CommandManager::SimpleCommand{
     "Navigate/Left",
-    "Go to Left Sibling",
+    "跳到左兄弟",
     [](GraphView* view, StringView args) {
       static_cast<NetworkView*>(view)->navigate(NetworkView::NavDirection::Left);
     },
@@ -806,7 +806,7 @@ void NetworkView::addCommands(CommandManager* mgr)
 
   mgr->add(new CommandManager::SimpleCommand{
     "Navigate/Right",
-    "Go to Right Sibling",
+    "跳到右兄弟",
     [](GraphView* view, StringView args) {
       static_cast<NetworkView*>(view)->navigate(NetworkView::NavDirection::Right);
     },
@@ -815,7 +815,7 @@ void NetworkView::addCommands(CommandManager* mgr)
 
   mgr->add(new CommandManager::SimpleCommand{
     "Edit/ToggleBypass",
-    "Toggle Bypass Flag (Mute/Unmute)",
+    "切换绕过",
     [](GraphView* view, StringView args) {
       static_cast<NetworkView*>(view)->toggleNodeFlagOfSelection(NODEFLAG_BYPASS);
     },
@@ -1153,7 +1153,7 @@ void NodeGraphEditor::initCommands()
   using SimpleCommand = CommandManager::SimpleCommand;
   mgr.add(new SimpleCommand{
     "File/Save",
-    "Save current document",
+    "保存当前文档",
     [](GraphView* view, StringView args) { view->editor()->saveDoc(view->doc()); },
     Shortcut{'S', ModKey::CTRL},
     "*",
@@ -1161,7 +1161,7 @@ void NodeGraphEditor::initCommands()
     [](GraphView* view) -> String { return String(view->doc()->savePath()); }}).setMayModifyGraph(false);
   mgr.add(new SimpleCommand{
     "File/SaveAs",
-    "Save current document as ...",
+    "另存为...",
     [](GraphView* view, StringView args) { view->editor()->saveDocAs(view->doc(), args); },
     Shortcut{'S', utils::eor(ModKey::CTRL, ModKey::SHIFT)},
     "*",
@@ -1169,7 +1169,7 @@ void NodeGraphEditor::initCommands()
     [](GraphView* view) -> String { return String(view->doc()->savePath()); }}).setMayModifyGraph(false);
   mgr.add(new SimpleCommand{
     "File/Open",
-    "Open document ...",
+    "打开文档...",
     [](GraphView* view, StringView args) {
       if (view->doc() && !view->doc()->everEdited() && !view->doc()->dirty())
         view->editor()->loadDocInto(args, view->doc());
@@ -1180,34 +1180,34 @@ void NodeGraphEditor::initCommands()
   }).setMayModifyGraph(false);
   mgr.add(new SimpleCommand{
     "Edit/Undo",
-    "Undo",
+    "撤销",
     [](GraphView* view, StringView args) {
       if (auto doc = view->doc())
         doc->undo();
       else if (auto graph = view->graph())
         graph->docRoot()->undo();
       else
-        msghub::error("cannot undo, this view has no related doc object");
+        msghub::error("无法撤销: 该视图未关联文档");
     },
     Shortcut{'Z', ModKey::CTRL},
     "network|inspector"
   });
   mgr.add(new SimpleCommand{
     "Edit/Redo",
-    "Redo",
+    "重做",
     [](GraphView* view, StringView args) {
       if (auto doc = view->doc())
         doc->redo();
       else if (auto graph = view->graph())
         graph->docRoot()->redo();
       else
-        msghub::error("cannot redo, this view has no related doc object");
+        msghub::error("无法重做: 该视图未关联文档");
     },
     Shortcut{'R', ModKey::CTRL},
   });
   mgr.add(new SimpleCommand{
     "Edit/Rename",
-    "Rename",
+    "重命名",
     [](GraphView* view, StringView args) {
       if (view->kind() == "network") {
         auto* netview = static_cast<NetworkView*>(view);
@@ -1215,7 +1215,7 @@ void NodeGraphEditor::initCommands()
           String newname(args);
           String oldname = node->name();
           if (!node->rename(String(args), newname))
-            msghub::warnf("cannot rename node to {}", args);
+            msghub::warnf("无法将节点重命名为 {}", args);
           else {
             msghub::debugf("rename node {} to {}", oldname, newname);
             view->graph()->docRoot()->history().commitIfAppropriate("rename node");
@@ -1225,7 +1225,7 @@ void NodeGraphEditor::initCommands()
           msghub::warn("select one node to rename");
         }
       }
-      msghub::warnf("cannot rename this item");
+      msghub::warnf("无法重命名此项目");
     },
     Shortcut{0xF2},
     "network",
@@ -1236,15 +1236,15 @@ void NodeGraphEditor::initCommands()
         if (auto node = netview->solelySelectedNode()) {
           return String(node->name());
         } else {
-          return "Select ONE AND ONLY ONE NODE to rename";
+          return "请选中单个节点以重命名";
         }
       }
-      return "CANNOT RENAME THIS ITEM";
+      return "无法重命名此项目";
     }
   });
   mgr.add(new SimpleCommand{
     "View/OpenCommandPalette",
-    "Open Palette",
+    "命令面板",
     [](GraphView* view, StringView args) { view->editor()->commandManager().openPalette(); },
     Shortcut{'P', ModKey::CTRL},
     "*",
@@ -1253,19 +1253,19 @@ void NodeGraphEditor::initCommands()
     true}).setMayModifyGraph(false);
   mgr.add(new SimpleCommand{
     "File/Quit",
-    "Quit",
+    "退出",
     [](GraphView* view, StringView args) { /*TODO: post quit message*/ },
     Shortcut{'Q', ModKey::CTRL},
   }).setMayModifyGraph(false);
   mgr.add(new SimpleCommand{
     "File/New",
-    "New Document ...",
+    "新建文档...",
     [](GraphView* view, StringView args) { view->editor()->createNewDocAndDefaultViews(); },
     Shortcut{'N', ModKey::CTRL},
   }).setMayModifyGraph(false);
   mgr.add(new SimpleCommand{
     "View/Close",
-    "Close Current View",
+    "关闭当前视图",
     [](GraphView* view, StringView args) { view->editor()->closeView(view->shared_from_this()); },
     Shortcut{'W', ModKey::CTRL},
   }).setMayModifyGraph(false);
@@ -1275,7 +1275,7 @@ void NodeGraphEditor::initCommands()
   // clang-format off
   mgr.add(new SimpleCommand{
     "View/Network",
-    "Open Network View",
+    "打开网络视图",
     [](GraphView* view, StringView args) {
       if (view->doc() && view->graph()) {
         if (auto netview = view->editor()->addView(view->doc(), "network")) {
@@ -1283,14 +1283,14 @@ void NodeGraphEditor::initCommands()
         }
       } else {
         msghub::error(
-          "no nodegraph to add network view to, please open or create a nodegraph first");
+          "没有可添加到的节点图 network view to, 请先打开或新建一个节点图");
       }
     },
     Shortcut{'W', utils::eor(ModKey::SHIFT, ModKey::ALT)}
   }).setMayModifyGraph(false);
   mgr.add(new SimpleCommand{
     "View/Inspector",
-    "Open Inspector View",
+    "打开检查器",
     [](GraphView* view, StringView args) {
       if (auto inspector = view->editor()->addView(view->doc(), "inspector")) {
         static_cast<InspectorView*>(inspector.get())->linkToView(view);
@@ -1299,7 +1299,7 @@ void NodeGraphEditor::initCommands()
   }).setMayModifyGraph(false);
   mgr.add(new SimpleCommand{
     "View/Messages",
-    "Open Messages View",
+    "打开消息视图",
     [](GraphView* view, StringView args) {
       if (auto msgview = view->editor()->addView(view->doc(), "message")) {
         msghub::info("message view opened");
@@ -1308,7 +1308,7 @@ void NodeGraphEditor::initCommands()
   }).setMayModifyGraph(false);
   mgr.add(new SimpleCommand{
     "Message/ClearOutput",
-    "Clear Output",
+    "清空输出",
     [](GraphView* view, StringView args) {
       msghub::instance().clear(msghub::Category::Output);
     },
@@ -1320,7 +1320,7 @@ void NodeGraphEditor::initCommands()
 #ifdef DEBUG
   mgr.add(new SimpleCommand{
     "Debug/TravelUp",
-    "[Debug] Travel From Here",
+    "[调试] 从当前节点遍历",
     [](GraphView* view, StringView args) {
       bool  topdown = args.length() > 0 && args[0] == 'd';
       auto* nv      = static_cast<NetworkView*>(view);
@@ -1347,7 +1347,7 @@ void NodeGraphEditor::initCommands()
     "Direction (up/down):"}).setMayModifyGraph(false);
   mgr.add(new SimpleCommand{
     "Debug/CheckHistroySize",
-    "[Debug] Check History Memory Usage",
+    "[调试] 历史内存占用",
     [](GraphView* view, StringView args) {
       if (auto graph = view->graph()) {
         auto bytes = graph->docRoot()->history().memoryBytesUsed();
@@ -1361,7 +1361,7 @@ void NodeGraphEditor::initCommands()
     "network"}).setMayModifyGraph(false);
   mgr.add(new SimpleCommand{
     "Debug/ToggleDocReadonly",
-    "[Debug] Toggle Document Readonly",
+    "[调试] 切换文档只读",
     [](GraphView* view, StringView args) {
       view->graph()->docRoot()->setReadonly(!view->graph()->docRoot()->readonly());
     },
@@ -1369,7 +1369,7 @@ void NodeGraphEditor::initCommands()
     "network"}).setMayModifyGraph(false);
   mgr.add(new SimpleCommand{
     "Debug/ToggleGraphReadonly",
-    "[Debug] Toggle Graph Readonly",
+    "[调试] 切换图只读",
     [](GraphView* view, StringView args) {
       view->graph()->setSelfReadonly(!view->graph()->selfReadonly());
     },
@@ -1493,7 +1493,7 @@ bool NodeGraphEditor::loadDocInto(StringView path, NodeGraphDocPtr dest)
     }
     return true;
   } else {
-    MessageHub::noticef("cannot open document \"{}\"", filepath);
+    MessageHub::noticef("无法打开文档 \"{}\"", filepath);
   }
   return false;
 }

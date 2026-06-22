@@ -18,7 +18,7 @@
 #include <limits>
 #include <memory>
 
-static constexpr char licenses_json[] =
+static constexpr unsigned char licenses_json[] =
 #include "res/licenses.inl"
 ;
 
@@ -1169,15 +1169,15 @@ public:
         ImGui::EndChild();
         ImGui::PopFont();
       };
-      if (ImGui::BeginTabItem("Log", nullptr, tabToOpen_ == "log" ? ImGuiTabItemFlags_SetSelected : 0)) {
+      if (ImGui::BeginTabItem("日志", nullptr, tabToOpen_ == "log" ? ImGuiTabItemFlags_SetSelected : 0)) {
         dumpMessage(MessageHub::Category::Log);
         ImGui::EndTabItem();
       }
-      if (ImGui::BeginTabItem("Notice", nullptr, tabToOpen_ == "notice" ? ImGuiTabItemFlags_SetSelected : 0)) {
+      if (ImGui::BeginTabItem("通知", nullptr, tabToOpen_ == "notice" ? ImGuiTabItemFlags_SetSelected : 0)) {
         dumpMessage(MessageHub::Category::Notice);
         ImGui::EndTabItem();
       }
-      if (ImGui::BeginTabItem("Output", nullptr, tabToOpen_ == "output" ? ImGuiTabItemFlags_SetSelected : 0)) {
+      if (ImGui::BeginTabItem("输出", nullptr, tabToOpen_ == "output" ? ImGuiTabItemFlags_SetSelected : 0)) {
         dumpMessage(MessageHub::Category::Output);
         ImGui::EndTabItem();
       }
@@ -1194,8 +1194,8 @@ class ImGuiHelpView : public ImGuiGraphView<ImGuiHelpView, GraphView>
   HashMap<String, String> licenses_;
 public:
   ImGuiHelpView(NodeGraphEditor* editor) : ImGuiGraphView(editor, nullptr) {
-    setTitle("Help");
-    auto js = Json::parse(licenses_json);
+    setTitle("帮助");
+    auto js = Json::parse(reinterpret_cast<const char*>(licenses_json));
     for (auto& [key, val] : js.items()) {
       licenses_[key] = val;
     }
@@ -1208,37 +1208,38 @@ public:
     auto* drawlist = ImGui::GetWindowDrawList();
     auto  windowsize = ImGui::GetContentRegionAvail();
     auto* font = ImGuiResource::instance().sansSerifFont;
-    auto* title = "NGED - a Node Graph EDitor";
-    auto  fontsize = 20.f * dpiScale();
+    auto* title = "NGED — 节点图编辑器";
+    auto  fontsize = 22.f * dpiScale();
     auto  textsize = font->CalcTextSizeA(fontsize, FLT_MAX, 0.f, title);
-    auto  textpos = ImVec2((windowsize / 2).x, fontsize * 1.5) - textsize / 2;
+    auto  textpos = ImVec2((windowsize / 2).x, fontsize * 1.2f) - textsize / 2;
     drawlist->AddText(font, fontsize, textpos + ImGui::GetWindowPos() + ImGui::GetWindowContentRegionMin(), 0xffffffff, title);
-    ImGui::SetCursorPos(ImVec2(8, textpos.y + fontsize * 4));
-    //ImGui::Separator();
+    ImGui::SetCursorPos(ImVec2(8, textpos.y + fontsize * 3));
     if (ImGui::BeginTabBar("Tabs")) {
-      if (ImGui::BeginTabItem("About")) {
-        ImGui::TextUnformatted("");
-        ImGui::TextUnformatted("Presented to you by iiif.");
-        ImGui::TextUnformatted("");
-        ImGui::TextUnformatted("With great help of following open source libraries:");
+      if (ImGui::BeginTabItem("关于")) {
+        ImGui::Spacing();
+        ImGui::TextWrapped("NGED 是一个跨平台 C++17 节点图编辑器库，"
+                           "基于 Dear ImGui (docking) 和 Raylib。"
+                           "支持无头模式、子图、撤销/重做、类型检查、自定义节点等。");
+        ImGui::Spacing();
+        ImGui::SeparatorText("开源许可");
+        ImGui::BeginChild("Licenses", ImVec2(0, -ImGui::GetFrameHeightWithSpacing()));
         for (auto&& [key, value]: licenses_) {
           if (ImGui::CollapsingHeader(key.c_str())) {
-            ImGui::Indent(16);
             ImGui::PushFont(ImGuiResource::instance().monoFont);
             ImGui::TextUnformatted(value.c_str());
             ImGui::PopFont();
-            ImGui::Unindent(16);
           }
         }
+        ImGui::EndChild();
         ImGui::EndTabItem();
       }
-      if (ImGui::BeginTabItem("Commands")) {
+      if (ImGui::BeginTabItem("命令列表")) {
         auto const& mgr = editor()->commandManager();
         if (ImGui::BeginTable("Commands##cmdtable", 4)) {
-          ImGui::TableSetupColumn("Name");
-          ImGui::TableSetupColumn("Description");
-          ImGui::TableSetupColumn("View");
-          ImGui::TableSetupColumn("Shortcut");
+          ImGui::TableSetupColumn("名称");
+          ImGui::TableSetupColumn("描述");
+          ImGui::TableSetupColumn("视图");
+          ImGui::TableSetupColumn("快捷键");
           ImGui::TableHeadersRow();
           for (auto&& cmd: mgr.commands()) {
             ImGui::TableNextColumn();
@@ -1313,7 +1314,7 @@ void ImGuiNodeGraphEditor::initCommands()
   commandManager().add(new ColorizeCommand);
   commandManager().add(new CommandManager::SimpleCommand{
     "Help/Help",
-    "Help ...",
+    "帮助...",
     [](GraphView* view, StringView args){ view->editor()->addView(nullptr, "help"); },
     Shortcut{0xF1}, "*"});
 
