@@ -1,5 +1,4 @@
 // NGED Raylib backend: raylib + ImGui_ImplRaylib
-// Uses raw ImGui_ImplRaylib API to avoid font-atlas conflicts with NGED's ImGuiResource.
 
 #include "imgui.h"
 #include "imgui_impl_raylib.h"
@@ -32,7 +31,6 @@ static int startMainLoop()
 
     theApp->init();
 
-    // Main loop
     while (!WindowShouldClose())
     {
         ImGui_ImplRaylib_ProcessEvents();
@@ -49,8 +47,7 @@ static int startMainLoop()
         EndDrawing();
     }
 
-    // ponytail: raylib can't cancel WindowShouldClose; agreeToQuit is informational here.
-    // Use raw GLFW backend when unsaved-work confirmation is required.
+    // raylib: agreeToQuit is informational (WindowShouldClose is one-way)
     theApp->agreeToQuit();
     theApp->quit();
 

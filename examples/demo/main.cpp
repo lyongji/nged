@@ -153,6 +153,14 @@ class DemoApp: public nged::App
     nged::addImGuiInteractions();
 
     nged::ImGuiResource::reloadFonts();
+
+    // 1.92 dynamic atlas: merge CJK, no glyph range needed
+    {
+      ImFontConfig cjkConfig;
+      cjkConfig.MergeMode = true;
+      ImGui::GetIO().Fonts->AddFontFromFileTTF(
+        "/usr/share/fonts/TTF/MapleMono-CN-Regular.ttf", 0.0f, &cjkConfig);
+    }
     auto doc = editor->createNewDocAndDefaultViews();
     auto root = doc->root();
     doc->root()->createNode("in");
