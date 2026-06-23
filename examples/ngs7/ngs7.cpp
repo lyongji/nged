@@ -1118,6 +1118,14 @@ void initEditor(NodeGraphEditor* editor)
 
   editor->setFileExt("scm");
   ImGuiResource::reloadFonts();
+
+  // CJK font for Chinese display
+  {
+    ImFontConfig cjkConfig;
+    cjkConfig.MergeMode = true;
+    ImGui::GetIO().Fonts->AddFontFromFileTTF(
+      "/usr/share/fonts/TTF/MapleMono-CN-Regular.ttf", 0.0f, &cjkConfig);
+  }
 }
 
 } // namespace ngs7

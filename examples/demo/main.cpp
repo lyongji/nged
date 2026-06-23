@@ -128,13 +128,18 @@ struct DummyNodeDef
 };
 
 static DummyNodeDef defs[] = {
+  { "+", -1, 1 },
+  { "-", -1, 1 },
+  { "*", -1, 1 },
+  { "/", -1, 1 },
   { "exec", 4, 1 },      // 执行节点（4 入 1 出）
   { "null", 1, 1 },      // 直通节点
   { "merge", -1, 1 },    // 合并节点（不限输入，1 输出）
   { "split", 1, 2 },     // 分支节点（1 入 2 出）
   { "picky", 3, 2 },     // 挑剔节点（演示类型检查）
   { "out", 1, 0 },       // 输出节点（1 入 0 出）
-  { "in", 0, 1 }         // 输入节点（0 入 1 出）
+  { "number", 0, 1 },  // 数字节点（无输入，直接输出值）
+  { "in", 0, 1 }
 };
 
 // ===================================================================
@@ -220,6 +225,65 @@ class DemoApp: public nged::App
     // — 创建新文档并添加默认视图（网络视图 + 检查器 + 消息视图）—
     auto doc = editor->createNewDocAndDefaultViews();
     doc->root()->createNode("in");                                       // 根图上放置一个输入节点
+
+    // — 简易求值器（demo 用） —
+    editor->commandManager().add(new nged::CommandManager::SimpleCommand{
+      "Eval/Run", "求值",
+      [](nged::GraphView* view, nged::StringView) {
+        auto* nv = static_cast<nged::NetworkView*>(view);
+        auto graph = nv->graph();
+        // 找 out 节点
+        nged::ItemID outId = nged::ItemID::None;
+        for (auto id : graph->items())
+          if (auto node = graph->get(id)->asNode())
+            if (node->type() == "out") { outId = id; break; }
+        if (outId == nged::ItemID::None) {
+          nged::MessageHub::warn("没有输出节点 (out)"); return;
+        }
+        using Op = double(*)(double,double);
+        static std::map<std::string, Op> ops = {
+          {"+", [](double a,double b){return a+b;}},
+          {"-", [](double a,double b){return a-b;}},
+          {"*", [](double a,double b){return a*b;}},
+          {"/", [](double a,double b){return b!=0?a/b:0;}},
+        };
+        std::function<double(nged::ItemID)> eval = [&](nged::ItemID id)->double {
+          auto item = graph->get(id);
+          if (auto* node = item->asNode()) {
+            auto typ = std::string(node->type());
+            if (typ == "number") return std::stod(node->name()); if (typ == "in" || typ == "null" || typ == "out" || typ == "merge" || typ == "split") {
+              nged::NodePtr src; nged::sint port;
+              if (node->getInput(0, src, port))
+                return eval(src->id());
+              return 0;
+            }
+            if (ops.count(typ)) {
+              double acc = typ=="-"||typ=="/" ? eval(node->id()) : ops[typ](0,0)*0;
+              for (int i=0; i<(int)graph->items().size(); ++i) {
+                nged::NodePtr src; nged::sint port;
+                if (node->getInput(i, src, port)) {
+                  double v = eval(src->id());
+                  acc = (i==0 && (typ=="-"||typ=="/")) ? v : ops[typ](acc, v);
+                } else break;
+              }
+              return acc;
+            }
+            if (typ == "exec") {
+              for (int i=0; i<4; ++i) { nged::NodePtr src; nged::sint port;
+                if (node->getInput(i, src, port)) eval(src->id());
+              }
+              nged::NodePtr src; nged::sint port;
+              return node->getInput(0,src,port)?eval(src->id()):0;
+            }
+          }
+          return 0;
+        };
+        try { nged::MessageHub::outputf("结果: {}", eval(outId)); }
+        catch (...) { nged::MessageHub::error("求值失败"); }
+      },
+      nged::Shortcut{0xF5}, // F5
+      "network"
+    }).setMayModifyGraph(false);
   }
 
   char const* title() { return "Demo"; }                                // 窗口标题
