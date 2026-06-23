@@ -1,67 +1,60 @@
 # NetworkView
 
-The `NetworkView` class is a specialized `GraphView` for visualizing and editing the node graph. It supports zooming, panning, and various interaction states.
+`NetworkView` 是专门用于可视化和编辑节点图的 `GraphView`。支持缩放、平移和多种交互状态。
 
-## Header
+## 头文件
 
 `#include "nged/nged.h"`
 
-## Class Definition
+## 核心职责
 
-```cpp
-class NetworkView : public GraphView
-{
-protected:
-  std::unique_ptr<Canvas> canvas_ = {nullptr};
-  // ...
-};
-```
+- **图渲染**：通过 `Canvas` 绘制节点、连线和注释。
+- **交互状态**：管理一组按优先级排序的交互状态（`InteractionState`），处理用户输入。
+- **选择管理**：追踪选中和悬停的图元。
+- **视觉效果**：支持动画和临时效果（如渐隐文字）。
 
-## Key Responsibilities
+## 公开方法
 
--   **Graph Visualization**: Renders nodes, links, and other graph items using a `Canvas`.
--   **Interaction Management**: Manages a stack of `InteractionState` objects (e.g., selection, moving, connecting).
--   **Navigation**: Handles zooming and panning.
--   **Selection**: Manages the set of selected items.
+### 画布
 
-## Public Methods
+- `Canvas* canvas() const`：返回画布对象。
+- `bool canvasIsFocused() const`：画布是否聚焦。
 
-### Canvas & Rendering
+### 选择
 
--   `Canvas* canvas() const`: Returns the drawing canvas.
--   `void draw() override`: Renders the graph.
--   `void update(float dt) override`: Updates the view and interaction states.
+- `HashSet<ItemID> const& selectedItems() const`：返回选中图元集合。
+- `void setSelectedItems(HashSet<ItemID> items)`：设置选中集合。
+- `Node* solelySelectedNode() const`：返回唯一选中的节点（多选则返回 nullptr）。
 
-### Selection
+### 交互状态
 
--   `auto const& selectedItems() const`: Returns the set of selected item IDs.
--   `void setSelectedItems(HashSet<ItemID> items)`: Sets the selection.
--   `ItemID hoveringItem() const`: Returns the ID of the item under the mouse.
--   `NodePin hoveringPin() const`: Returns the pin under the mouse.
--   `Node* solelySelectedNode() const`: Returns the single selected node, or nullptr.
+- `template<class T> void registerInteraction()`：注册交互状态。
+- `bool isActive(StringView const& name) const`：检查状态是否激活。
+- `InteractionStatePtr getState(StringView const& name) const`：获取交互状态。
 
-### Navigation
+### 导航
 
--   `void zoomToSelected(float time, bool doScale, int easingOrder, Vec2 offset)`: Zooms to fit selected items.
--   `void navigate(NavDirection direction)`: Navigates in the specified direction.
+- `void zoomToSelected(float time, ...)`：缩放到选中图元。
+- `void navigate(NavDirection direction)`：方向键导航到相邻节点。
 
-### Interaction States
+### 剪贴板
 
--   `void addState(InteractionStatePtr state)`: Adds an interaction state.
--   `InteractionStatePtr getState(StringView const& name) const`: Retrieves a state by name.
--   `template<class T> bool isActive() const`: Checks if a specific state type is active.
--   `template<class T> std::shared_ptr<T> getState() const`: Retrieves a state by type.
+- `bool copyTo(Json&)`：复制选中图元到 JSON。
+- `bool pasteFrom(Json const&)`：从 JSON 粘贴图元。
 
-### Effects
+## 交互状态栈
 
--   `void addFadingText(String text, Vec2 pos, Color color, float duration)`: Adds a temporary text effect.
+`NetworkView` 使用优先级排序的状态栈处理用户输入：
 
-## Nested Classes
+| 状态 | 优先级 | 功能 |
+|------|--------|------|
+| `HandleView` | 0 | 平移/缩放 |
+| `AnimationState` | 10 | 平滑动画 |
+| `MoveState` | 10 | 拖拽移动 |
+| `SelectionState` | 50 | 框选/点选 |
+| `LinkState` | 50 | 拖拽连线 |
+| `CreateNodeState` | 50 | 搜索创建节点 |
+| `CutLinkState` | 50 | 切断连线 |
+| `HandleShortcut` | 100 | 快捷键处理 |
 
-### InteractionState
-Base class for custom interactions.
--   `virtual bool shouldEnter(NetworkView const*)`: Condition to start interaction.
--   `virtual void onEnter(NetworkView*)`: Called when starting.
--   `virtual void tick(NetworkView*, float dt)`: Called every frame.
--   `virtual void draw(NetworkView*)`: Called to draw custom UI.
--   `virtual void onExit(NetworkView*)`: Called when ending.
+状态按优先级排序执行，高优先级状态可以阻止低优先级状态的更新。

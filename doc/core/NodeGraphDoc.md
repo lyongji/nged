@@ -1,66 +1,47 @@
 # NodeGraphDoc
 
-The `NodeGraphDoc` class represents a document in the node graph editor. It contains the graph data, manages undo/redo history, and handles file I/O.
+`NodeGraphDoc` 是节点图编辑器中的文档对象。包含图数据，管理撤销/重做历史，处理文件 I/O。
 
-## Header
+## 头文件
 
 `#include "nged/nged.h"`
 
-## Class Definition
+## 核心职责
 
-```cpp
-class NodeGraphDoc : public std::enable_shared_from_this<NodeGraphDoc>
-{
-  // ...
-};
-```
+- **文档模型**：持有根图（`Graph`）和所有图元。
+- **历史管理**：通过 `NodeGraphDocHistory` 提供撤销/重做。
+- **文件 I/O**：保存和加载 `.ng` 格式文件。
+- **脏标记**：追踪未保存的修改。
 
-## Key Responsibilities
+## 公开方法
 
--   **Data Container**: Holds the root `Graph` and the `GraphItemPool`.
--   **History Management**: Manages `NodeGraphDocHistory` for undo/redo functionality.
--   **Serialization**: Handles loading from and saving to files.
--   **State Tracking**: Tracks whether the document is dirty (modified) or read-only.
+### 文件操作
 
-## Public Methods
+- `bool open(String path)`：从文件加载文档。
+- `bool save()`：保存到 `savePath_`。
+- `bool saveAs(String path)`：另存到指定路径并记住路径。
+- `bool saveTo(String path)`：保存到指定路径但不记住路径。
+- `StringView savePath() const`：返回当前保存路径。
 
-### Lifecycle & I/O
+### 图管理
 
--   `NodeGraphDoc(NodeFactoryPtr nodeFactory, GraphItemFactoryPtr itemFactory)`: Constructor.
--   `bool open(String path)`: Opens a document from the specified path.
--   `void close()`: Closes the document.
--   `bool save()`: Saves the document to the current save path.
--   `bool saveAs(String path)`: Saves the document to a new path and updates the save path.
--   `bool saveTo(String path)`: Saves the document to a path without updating the current save path.
+- `GraphPtr root() const`：返回根图。
+- `void makeRoot()`：初始化根图。
+- `void notifyGraphModified(Graph* graph)`：通知图已修改。
 
-### Item Management
+### 状态
 
--   `virtual ItemID addItem(GraphItemPtr item)`: Adds an item to the document's pool.
--   `virtual GraphItemPtr getItem(ItemID id)`: Retrieves an item by its ID.
--   `virtual void removeItem(ItemID id)`: Removes an item from the pool.
--   `virtual size_t numItems() const`: Returns the number of items in the document.
--   `GraphItemPtr findItemByUID(UID const& uid)`: Finds an item by its unique identifier (UUID).
+- `bool dirty() const`：返回是否有未保存修改。
+- `bool readonly() const`：返回是否只读。
+- `void undo()` / `void redo()`：撤销/重做。
 
-### State & Properties
+### 图元管理
 
--   `StringView title() const`: Returns the document title.
--   `StringView savePath() const`: Returns the current file path.
--   `GraphPtr root() const`: Returns the root graph.
--   `bool dirty() const`: Returns true if the document has unsaved changes.
--   `void touch()`: Marks the document as modified.
--   `void untouch()`: Marks the document as unmodified.
--   `bool readonly() const`: Returns true if the document is read-only.
--   `void setReadonly(bool readonly)`: Sets the read-only status.
+- `ItemID addItem(GraphItemPtr item)`：添加图元到文档池。
+- `GraphItemPtr getItem(ItemID id)`：获取图元。
+- `void removeItem(ItemID id)`：移除图元。
 
-### History
+### 序列化
 
--   `void undo()`: Undoes the last operation.
--   `void redo()`: Redoes the last undone operation.
--   `NodeGraphDocHistory& history()`: Returns the history manager.
--   `NodeGraphDocHistory::EditGroup editGroup(String message)`: Starts a grouped edit operation (transaction).
-
-### Signals
-
--   `Signal<Graph*> onGraphModified`: Emitted when the graph is modified. Connect handlers via `doc->onGraphModified.connect(...)`.
--   `Signal<Node*, String const&, String const&> onNodeRenamed`: Emitted when a node is renamed, with the old and new names.
--   `void notifyGraphModified(Graph* graph)`: Emits the `onGraphModified` signal.
+- `void setDeserializeInplace(bool)`：设置是否原地反序列化（UID 匹配）。
+- `GraphItemPtr findItemByUID(UID const& uid)`：通过 UID 查找图元。

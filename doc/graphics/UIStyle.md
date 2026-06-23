@@ -1,55 +1,78 @@
 # UIStyle
 
-The `UIStyle` struct defines the visual appearance of the node graph editor. It contains colors, sizes, and other style properties.
+`UIStyle` 定义节点图编辑器的视觉外观。包含颜色、尺寸等样式属性。是一个单例。
 
-## Header
+## 头文件
 
-`#include "nged/style.h"`
+`#include "nged/nged.h"`
 
-## Class Definition
+## 使用
 
 ```cpp
-struct UIStyle
-{
-  uint32_t windowBackgroundColor    = 0x333333ff;
-  uint32_t nodeDefaultColor         = 0xddddddff;
-  float    nodeStrokeWidth          = 0.f;
-  // ...
-  static UIStyle& instance();
-  void save();
-  void load();
-};
+auto& style = nged::UIStyle::instance();
+style.nodeDefaultColor = 0xddddddff;
 ```
 
-## Key Responsibilities
+## 属性
 
--   **Theme Configuration**: Stores colors for nodes, links, selection, etc.
--   **Layout Metrics**: Stores sizes for fonts, margins, and radii.
--   **Persistence**: Can be saved to and loaded from a file.
+### 节点
 
-## Public Members
+| 属性 | 默认值 | 说明 |
+|------|--------|------|
+| `nodeDefaultColor` | `0xddddddff` | 节点默认颜色 |
+| `nodeStrokeWidth` | `0.f` | 节点边框宽度 |
+| `nodeStrokeColor` | `0x000000ff` | 节点边框颜色 |
+| `nodePinRadius` | `3.4f` | 引脚半径 |
+| `nodeLabelColor` | `0xeeeeeeff` | 节点标签颜色 |
 
-### Colors
+### 连线
 
--   `windowBackgroundColor`: Background color of the editor window.
--   `nodeDefaultColor`: Default color for nodes.
--   `nodeStrokeColor`: Stroke color for nodes.
--   `linkDefaultColor`: Default color for links.
--   `linkSelectedColor`: Color for selected links.
--   `selectionBoxBackground`: Background color of the selection box.
--   `commentColor`: Text color for comments.
--   `groupBoxBackground`: Background color for group boxes.
+| 属性 | 默认值 | 说明 |
+|------|--------|------|
+| `linkStrokeWidth` | `2.f` | 连线宽度 |
+| `linkDefaultColor` | `0xddddddff` | 连线默认颜色 |
+| `linkSelectedWidth` | `4.f` | 选中连线宽度 |
+| `linkSelectedColor` | `0xffff00ff` | 选中连线颜色 |
 
-### Metrics
+### 注释与分组
 
--   `nodeStrokeWidth`: Width of the node border.
--   `nodePinRadius`: Radius of input/output pins.
--   `linkStrokeWidth`: Width of link lines.
--   `routerRadius`: Radius of router points.
--   `bigFontSize`, `normalFontSize`, `smallFontSize`: Font sizes.
+| 属性 | 默认值 | 说明 |
+|------|--------|------|
+| `commentColor` | `0x4caf50ff` | 注释边框颜色 |
+| `commentBackground` | `0x004d4066` | 注释背景颜色 |
+| `commentBoxMargin` | `{8, 8}` | 注释内边距 |
+| `groupBoxBackground` | `0x44444466` | 分组框背景 |
 
-## Methods
+### 字体大小
 
--   `static UIStyle& instance()`: Returns the singleton instance.
--   `void save()`: Saves the current style to disk.
--   `void load()`: Loads the style from disk.
+| 属性 | 默认值 |
+|------|--------|
+| `bigFontSize` | `24` |
+| `normalFontSize` | `18` |
+| `smallFontSize` | `14` |
+
+### 字体路径（空字符串使用内嵌字体）
+
+| 属性 | 说明 |
+|------|------|
+| `fontSansSerifPath` | 无衬线字体文件路径 |
+| `fontMonoPath` | 等宽字体文件路径 |
+| `fontIconPath` | 图标字体文件路径 |
+| `fontMergeEnabled` | 是否启用字体合并（`true`） |
+
+### 其他
+
+| 属性 | 默认值 | 说明 |
+|------|--------|------|
+| `windowBackgroundColor` | `0x333333ff` | 窗口背景 |
+| `selectionBoxBackground` | `0x33691E88` | 框选颜色 |
+| `deselectionBoxBackground` | `0x600D1E88` | 反选颜色 |
+| `routerRadius` | `6.f` | 路由点半径 |
+| `commandPaletteWidthRatio` | `0.75f` | 命令面板宽度占比 |
+| `groupboxHeaderHeight` | `16.f` | 分组框标题高度 |
+
+## 公开方法
+
+- `static UIStyle& instance()`：获取单例实例。
+- `void save()`：保存样式到文件。
+- `void load()`：从文件加载样式。

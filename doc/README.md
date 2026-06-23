@@ -1,19 +1,19 @@
-# Introduction
+# 介绍
 
-Welcome to the `nged` (Node Graph Editor) documentation. `nged` is a C++ library for creating node-based graph editors, such as those used in visual scripting, shader editing, or data flow modeling.
+欢迎阅读 `nged`（节点图编辑器）文档。`nged` 是一个用于创建节点图编辑器的 C++ 库，适用于可视化编程、着色器编辑或数据流建模。
 
-## Overview
+## 概览
 
-The library provides a flexible framework for:
--   **Graph Data Structure**: Managing nodes, links, and their connections.
--   **View System**: Rendering and interacting with the graph.
--   **Extensibility**: Creating custom node types and interactions.
--   **Undo/Redo**: Built-in history management.
--   **Styling**: Customizable visual appearance.
+该库提供了灵活的基础框架：
+- **图数据结构**：管理节点、连线及其连接关系。
+- **视图系统**：渲染和交互式操作图。
+- **可扩展性**：创建自定义节点类型和交互方式。
+- **撤销/重做**：内置历史管理。
+- **样式**：可定制的视觉外观。
 
-## Getting Started
+## 入门
 
-To get started, explore the core classes:
--   [NodeGraphEditor](core/NodeGraphEditor.md): The main application controller.
--   [NodeGraphDoc](core/NodeGraphDoc.md): The document model.
--   [Graph](core/Graph.md): The graph data structure.
+从核心类开始探索：
+- [NodeGraphEditor](core/NodeGraphEditor.md)：主控制器。
+- [NodeGraphDoc](core/NodeGraphDoc.md)：文档模型。
+- [Graph](core/Graph.md)：图数据结构。

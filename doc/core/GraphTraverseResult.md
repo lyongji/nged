@@ -1,46 +1,39 @@
 # GraphTraverseResult
 
-The `GraphTraverseResult` class stores the result of a graph traversal operation (e.g., topological sort, BFS). It provides an efficient way to access nodes in the traversed order and their dependencies.
+`GraphTraverseResult` 存储图遍历操作（如拓扑排序、BFS）的结果。提供高效的方式按遍历顺序访问节点及其依赖关系。
 
-## Header
+## 头文件
 
 `#include "nged/nged.h"`
 
-## Class Definition
+## 核心职责
 
-```cpp
-class GraphTraverseResult
-{
-  // ...
-};
-```
+- **顺序保持**：按访问顺序存储节点。
+- **依赖追踪**：高效存储节点间的输入/输出关系。
+- **迭代**：提供迭代器和访问器遍历结果。
 
-## Key Responsibilities
+## 公开方法
 
--   **Order Preservation**: Stores nodes in the order they were visited.
--   **Dependency Tracking**: Efficiently stores input/output relationships between visited nodes.
--   **Iteration**: Provides iterators and accessors to traverse the result.
+### 访问
 
-## Public Methods
+- `size_t size() const`：返回结果中节点数量。
+- `Node* node(size_t index) const`：返回指定索引的节点。
+- `Node* inputOf(size_t nodeIndex, int inputIndex) const`：返回指定节点的输入节点。
+- `Node* outputOf(size_t nodeIndex, int outputIndex) const`：返回指定节点的输出节点。
 
-### Access
+### 迭代
 
--   `size_t size() const`: Returns the number of nodes in the result.
--   `Node* node(size_t index) const`: Returns the node at the given index.
--   `Node* inputOf(size_t nodeIndex, int inputIndex) const`: Returns the input node for a given node.
--   `Node* outputOf(size_t nodeIndex, int outputIndex) const`: Returns the output node for a given node.
+- `Iterator begin() const`：返回起始迭代器。
+- `Iterator end() const`：返回结束迭代器。
+- `Accessor operator[](size_t index) const`：返回指定索引的访问器。
+- `Accessor find(ItemID id) const`：通过 ID 查找节点。
 
-### Iteration
-
--   `Iterator begin() const`: Returns an iterator to the beginning.
--   `Iterator end() const`: Returns an iterator to the end.
--   `Accessor operator[](size_t index) const`: Returns an accessor for the node at the given index.
--   `Accessor find(ItemID id) const`: Finds a node by its ID.
-
-## Nested Classes
+## 内部类
 
 ### Accessor
-A helper class to access node properties within the result.
--   `Node* node() const`: Returns the node.
--   `int inputCount() const`: Returns the number of inputs.
--   `int outputCount() const`: Returns the number of outputs.
+
+辅助类，用于访问结果中的节点属性：
+
+- `Node* node() const`：返回节点。
+- `int inputCount() const`：返回输入数量。
+- `int outputCount() const`：返回输出数量。

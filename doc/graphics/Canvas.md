@@ -1,77 +1,63 @@
 # Canvas
 
-The `Canvas` class is an abstract base class that defines the drawing interface for the node graph editor. It abstracts the underlying rendering API (e.g., ImGui, OpenGL).
+`Canvas` 是定义节点图编辑器绘制接口的抽象基类。它抽象了底层渲染 API（如 ImGui/OpenGL）。
 
-## Header
+## 头文件
 
 `#include "nged/nged.h"`
 
-## Class Definition
+## 核心职责
+
+- **绘制命令**：提供绘制线条、矩形、圆形、文字和图片的接口。
+- **坐标变换**：管理画布→屏幕坐标变换（支持平移和缩放）。
+- **图层系统**：支持分层绘制（5 层：Lower → Higher）。
+
+## 坐标系统
+
+- `viewPos_`：画布视口偏移（平移）。
+- `viewScale_`：画布缩放比例。
+- `canvasToScreen()`：将画布坐标转换为屏幕坐标。
+- `screenToCanvas()`：将屏幕坐标转换为画布坐标。
+
+## 图层
 
 ```cpp
-class Canvas
-{
-public:
-  // ...
+enum class Layer : int {
+  Lower = 0, Low, Standard, High, Higher, Count
 };
 ```
 
-## Key Responsibilities
+- `pushLayer(Layer)`：推入新图层。
+- `popLayer()`：弹出图层。
 
--   **Drawing Primitives**: Provides methods to draw lines, rectangles, circles, and polygons.
--   **Text Rendering**: Provides methods to draw text with specific styles.
--   **Coordinate System**: Manages the transformation between screen space and canvas space (pan/zoom).
--   **Layer Management**: Supports drawing on different layers (e.g., background, standard, foreground).
+## 绘制方法
 
-## Public Methods
+### 形状
 
-### Coordinate Transformation
+- `drawRect(Vec2 topleft, Vec2 bottomright, float cornerradius, ShapeStyle)`：绘制矩形。
+- `drawCircle(Vec2 center, float radius, int segments, ShapeStyle)`：绘制圆形。
+- `drawPoly(Vec2 const* pts, sint count, bool closed, ShapeStyle)`：绘制多边形。
+- `drawLine(Vec2 a, Vec2 b, uint32_t color, float width)`：绘制线段。
 
--   `Mat3 canvasToScreen() const`: Returns the transformation matrix from canvas to screen.
--   `Mat3 screenToCanvas() const`: Returns the transformation matrix from screen to canvas.
--   `void setViewPos(Vec2 pos)`: Sets the view position (pan).
--   `void setViewScale(float scale)`: Sets the view scale (zoom).
+### 文字
 
-### Drawing Primitives
+- `drawText(Vec2 pos, StringView text, TextStyle)`：绘制文字（画布坐标）。
+- `drawTextUntransformed(Vec2 pos, StringView text, TextStyle, float scale)`：绘制文字（屏幕坐标）。
+- `measureTextSize(StringView text, TextStyle)`：测量文字尺寸。
 
--   `virtual void drawLine(Vec2 a, Vec2 b, uint32_t color, float width)`: Draws a line.
--   `virtual void drawRect(Vec2 tl, Vec2 br, float radius, ShapeStyle style)`: Draws a rectangle.
--   `virtual void drawCircle(Vec2 center, float radius, int segments, ShapeStyle style)`: Draws a circle.
--   `virtual void drawPoly(Vec2 const* pts, sint num, bool closed, ShapeStyle style)`: Draws a polygon.
+### 图片
 
-### Text
+- `drawImage(ImagePtr image, Vec2 pmin, Vec2 pmax, ...)`：绘制图片。
+- `static ImagePtr createImage(uint8_t const* data, int w, int h)`：创建图片对象。
 
--   `virtual void drawText(Vec2 pos, StringView text, TextStyle const& style)`: Draws text at a position.
--   `virtual Vec2 measureTextSize(StringView text, TextStyle const& style)`: Measures the size of text.
+## 样式
 
-### Layers
-
--   `void pushLayer(Layer layer)`: Pushes a new drawing layer.
--   `void popLayer()`: Pops the current layer.
--   `virtual void setCurrentLayer(Layer layer)`: Sets the active layer.
-
-## Nested Types
-
-### ShapeStyle
-Defines style for shapes.
 ```cpp
-struct ShapeStyle {
-  bool     filled;
-  uint32_t fillColor;
-  float    strokeWidth;
-  uint32_t strokeColor;
-};
-```
+struct ShapeStyle { bool filled; uint32_t fillColor; float strokeWidth; uint32_t strokeColor; };
 
-### TextStyle
-Defines style for text.
-```cpp
 struct TextStyle {
-  TextAlign         align;
-  TextVerticalAlign valign;
-  FontFamily        font;
-  FontStyle         style;
-  FontSize          size;
-  uint32_t          color;
+  TextAlign align; TextVerticalAlign valign;
+  FontFamily font; FontStyle style; FontSize size;
+  uint32_t color;
 };
 ```

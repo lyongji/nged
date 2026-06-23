@@ -1,57 +1,48 @@
 # MessageHub
 
-The `MessageHub` class is a singleton that manages application messages, logs, and errors. It provides a central place to report and retrieve status information.
+`MessageHub` 是一个单例，管理应用程序的消息、日志和错误。提供统一的报告和状态信息查询接口。
 
-## Header
+## 头文件
 
 `#include "nged/nged.h"`
 
-## Class Definition
+## 核心职责
+
+- **分类日志**：支持三种消息类别（`Log`、`Notice`、`Output`）。
+- **分级日志**：支持六种详细级别（`Trace` → `Fatal`）。
+- **线程安全**：使用共享互斥锁保护消息队列。
+- **数量限制**：可设置消息队列最大条目数。
+
+## 类别与级别
 
 ```cpp
-class MessageHub
-{
-public:
-  enum class Category { Log, Notice, Output, Count };
-  enum class Verbosity { Trace, Debug, Info, Warning, Error, Fatal, Text, Count };
-  // ...
-  static MessageHub& instance();
-};
+enum class Category { Log = 0, Notice, Output, Count };
+enum class Verbosity { Trace = 0, Debug, Info, Warning, Error, Fatal, Text, Count };
 ```
 
-## Key Responsibilities
+## 使用
 
--   **Logging**: Records messages with different severity levels (Trace, Debug, Info, Warning, Error, Fatal).
--   **Categorization**: Groups messages into categories (Log, Notice, Output).
--   **Storage**: Stores a history of messages.
--   **Thread Safety**: Uses a mutex to ensure safe concurrent access.
+```cpp
+// 日志消息
+MessageHub::trace("vertex count: {}", 1234);
+MessageHub::debugf("entering subgraph {}", ptr);
+MessageHub::infof("shortcut for command {} triggered", name);
+MessageHub::warnf("cannot rename node to {}", name);
+MessageHub::error("failed to deserialize");
 
-## Public Methods
+// 通知（用户可见）
+MessageHub::notice("file saved successfully");
 
-### Logging
+// 输出（结果展示）
+MessageHub::outputf("result: {:.2f}", value);
+```
 
--   `void addMessage(String message, Category category, Verbosity verbose)`: Adds a message to the hub.
--   `static void trace(String msg)`: Logs a trace message.
--   `static void debug(String msg)`: Logs a debug message.
--   `static void info(String msg)`: Logs an info message.
--   `static void warn(String msg)`: Logs a warning message.
--   `static void error(String msg)`: Logs an error message.
--   `static void fatal(String msg)`: Logs a fatal error message.
--   `static void notice(String msg)`: Logs a user notice.
--   `static void output(String msg)`: Logs program output.
+## 公开方法
 
-### Formatting Helpers
-
-There are also formatting variants of the logging functions (e.g., `tracef`, `debugf`, etc.) that accept format strings and arguments (similar to `fmt::format` or `printf`).
-
-### Access & Management
-
--   `void clear(Category category)`: Clears messages of a specific category.
--   `void clearAll()`: Clears all messages.
--   `void setCountLimit(size_t count)`: Sets the maximum number of messages to store.
--   `size_t count(Category category) const`: Returns the number of messages in a category.
-
-### Iteration
-
--   `template<class F> void foreach(Category category, F&& func) const`: Iterates over messages in a category.
--   `template<class F> void forrange(Category category, F&& func, size_t offset, size_t count) const`: Iterates over a range of messages.
+- `static MessageHub& instance()`：获取单例。
+- `void addMessage(String, Category, Verbosity)`：添加消息。
+- `void clear(Category)`：清空指定类别消息。
+- `void clearAll()`：清空全部消息。
+- `void setCountLimit(size_t)`：设置最大消息数（默认 4096）。
+- `template<class F> void foreach(Category, F&&)`：遍历消息。
+- `size_t count(Category) const`：返回消息数量。

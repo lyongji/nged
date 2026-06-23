@@ -1,12 +1,12 @@
 # GraphItem
 
-The `GraphItem` class is the abstract base class for all objects that can exist in a graph (nodes, links, comments, routers, etc.).
+`GraphItem` 是所有可存在于图中的对象（节点、连线、注释、路由等）的抽象基类。
 
-## Header
+## 头文件
 
 `#include "nged/nged.h"`
 
-## Class Definition
+## 类定义
 
 ```cpp
 class GraphItem : public std::enable_shared_from_this<GraphItem>
@@ -15,52 +15,49 @@ protected:
   Graph* parent_;
   ItemID id_ = ID_None;
   UID    uid_ = {};
-  AABB   aabb_ = {{0, 0}, {0, 0}}; // local aabb
-  Vec2   pos_  = {0, 0};           // position
+  AABB   aabb_ = {{0, 0}, {0, 0}}; // 局部轴对齐包围盒
+  Vec2   pos_  = {0, 0};           // 位置
   // ...
 };
 ```
 
-## Key Responsibilities
+## 核心职责
 
--   **Identity**: Stores unique ID (`ItemID`) and persistent UUID (`UID`).
--   **Spatial**: Manages position (`pos_`) and bounding box (`aabb_`).
--   **Serialization**: Defines interface for saving/loading state.
--   **Drawing & Interaction**: Defines interface for drawing and hit testing.
+- **标识**：存储唯一运行时 ID（`ItemID`）和持久化 UUID（`UID`）。
+- **空间**：管理位置（`pos_`）和包围盒（`aabb_`）。
+- **序列化**：定义保存/加载状态的接口。
+- **绘制与交互**：定义绘制和命中测试的接口。
 
-## Public Methods
+## 公开方法
 
-### Identity & Hierarchy
+### 标识与层级
 
--   `ItemID id() const`: Returns the transient runtime ID.
--   `UID uid() const`: Returns the persistent UUID.
--   `Graph* parent() const`: Returns the parent graph.
+- `ItemID id() const`：返回临时运行时 ID。
+- `UID uid() const`：返回持久化 UUID。
+- `Graph* parent() const`：返回父图。
 
-### Spatial
+### 空间
 
--   `Vec2 pos() const`: Returns the current position.
--   `virtual bool moveTo(Vec2 to)`: Moves the item to a new position.
--   `virtual bool canMove() const`: Returns true if the item is movable.
--   `AABB aabb() const`: Returns the world-space bounding box.
--   `virtual AABB localBound() const`: Returns the local-space bounding box.
--   `virtual int zOrder() const`: Returns drawing order (z-index).
+- `Vec2 pos() const`：返回当前位置。
+- `virtual bool moveTo(Vec2 to)`：将图元移动到新位置。
+- `virtual bool canMove() const`：返回图元是否可移动。
+- `AABB aabb() const`：返回世界空间包围盒。
+- `virtual AABB localBound() const`：返回局部空间包围盒。
+- `virtual int zOrder() const`：返回绘制顺序（z 轴）。
 
-### Interaction
+### 交互
 
--   `virtual bool hitTest(Vec2 point) const`: Checks if a point is within the item.
--   `virtual bool hitTest(AABB box) const`: Checks if the item intersects with a box.
--   `virtual void draw(Canvas*, GraphItemState state) const`: Draws the item.
+- `virtual bool hitTest(Vec2 point) const`：检查点是否在图元内。
+- `virtual bool hitTest(AABB box) const`：检查图元是否与矩形相交。
+- `virtual void draw(Canvas*, GraphItemState state) const`：绘制图元。
 
-### Serialization
+### 序列化
 
--   `virtual bool serialize(Json&) const`: Serializes item state to JSON.
--   `virtual bool deserialize(Json const&)`: Deserializes item state from JSON.
+- `virtual bool serialize(Json&) const`：将图元状态序列化为 JSON。
+- `virtual bool deserialize(Json const&)`：从 JSON 反序列化图元状态。
 
-### Casting Helper
-Provides safe casting methods to derived types:
--   `asNode()`
--   `asLink()`
--   `asRouter()`
--   `asDyeable()`
--   `asResizable()`
--   `asGroupBox()`
+### 类型转换
+
+提供到派生类型的安全转换方法：
+- `asNode()`、`asLink()`、`asRouter()`
+- `asDyeable()`、`asResizable()`、`asGroupBox()`

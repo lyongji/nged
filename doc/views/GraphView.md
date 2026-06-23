@@ -1,56 +1,47 @@
 # GraphView
 
-The `GraphView` class is the base class for all UI views in the editor. A view presents data from a `NodeGraphDoc` to the user.
+`GraphView` 是编辑器中所有 UI 视图的基类。视图将 `NodeGraphDoc` 的数据呈现给用户。
 
-## Header
+## 头文件
 
 `#include "nged/nged.h"`
 
-## Class Definition
+## 核心职责
 
-```cpp
-class GraphView : public std::enable_shared_from_this<GraphView>
-{
-protected:
-  NodeGraphDocPtr  doc_ = nullptr;
-  WeakGraphPtr     graph_;
-  String           kind_      = "unknown";
-  String           title_     = "untitled";
-  // ...
-};
-```
+- **数据绑定**：关联到一个 `NodeGraphDoc` 和可选的一个 `Graph`。
+- **生命周期**：管理视图的打开/关闭状态。
+- **焦点管理**：追踪视图是否聚焦或悬停。
+- **事件响应**：响应视图事件（焦点、选择等）。
 
-## Key Responsibilities
+## 公开方法
 
--   **View State**: Manages open/closed state, focus, and hover status.
--   **Document Association**: Links to a `NodeGraphDoc`.
--   **Event Handling**: Provides virtual methods for handling events.
--   **Rendering Interface**: Defines the `draw` method for rendering.
+### 数据
 
-## Public Methods
+- `NodeGraphDocPtr doc() const`：返回关联的文档。
+- `GraphPtr graph() const`：返回当前显示的图。
+- `virtual void reset(NodeGraphDocPtr doc)`：重置文档。
+- `virtual void reset(WeakGraphPtr graph)`：切换到另一个图。
 
-### Properties
+### 状态
 
--   `NodeGraphDocPtr doc() const`: Returns the associated document.
--   `GraphPtr graph() const`: Returns the graph currently being viewed (if any).
--   `StringView kind() const`: Returns the view kind (e.g., "network", "inspector").
--   `String const& title() const`: Returns the view title.
--   `void setTitle(String title)`: Sets the view title.
--   `bool isOpen() const`: Returns true if the view is open.
--   `void setOpen(bool open)`: Opens or closes the view.
--   `bool isFocused() const`: Returns true if the view has focus.
--   `bool isHovered() const`: Returns true if the mouse is hovering over the view.
+- `bool isOpen() const` / `void setOpen(bool)`：视图开关状态。
+- `bool isFocused() const` / `void setFocused(bool)`：焦点状态。
+- `bool isHovered() const` / `void setHovered(bool)`：悬停状态。
+- `size_t id() const`：视图唯一 ID。
 
-### Lifecycle
+### 更新与绘制
 
--   `virtual void reset(NodeGraphDocPtr doc)`: Resets the view to a new document.
--   `virtual void reset(WeakGraphPtr graph)`: Resets the view to a new graph.
--   `virtual void update(float dt)`: Updates the view state.
--   `virtual void draw() = 0`: Draws the view content (pure virtual).
+- `virtual void update(float dt)`：每帧更新。
+- `virtual void draw() = 0`：绘制视图（纯虚函数）。
+- `virtual void onDocModified()`：文档修改回调。
+- `virtual void onGraphModified()`：图修改回调。
 
-### Custom Events
+### 事件
 
--   `virtual void onViewEvent(GraphView* view, StringView eventType)`: Handles custom view events.
--   `virtual void please(StringView request)`: Handles generic requests.
--   `virtual void onDocModified() = 0`: Called when the document is modified.
--   `virtual void onGraphModified() = 0`: Called when the graph structure changes.
+- `virtual void onViewEvent(GraphView* view, StringView eventType)`：接收视图事件。
+- `virtual void please(StringView request)`：响应其他视图的请求。
+
+### 菜单
+
+- `virtual bool hasMenu() const`：是否有菜单栏。
+- `virtual void updateMenu()`：更新菜单栏内容。

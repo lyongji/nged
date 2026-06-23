@@ -1,8 +1,8 @@
-# Summary
+# 目录
 
-- [Introduction](README.md)
+- [介绍](README.md)
 
-- [Core](core/NodeGraphEditor.md)
+- [核心](core/NodeGraphEditor.md)
     - [NodeGraphEditor](core/NodeGraphEditor.md)
     - [NodeGraphDoc](core/NodeGraphDoc.md)
     - [Graph](core/Graph.md)
@@ -12,21 +12,21 @@
     - [GraphTraverseResult](core/GraphTraverseResult.md)
     - [GraphItemPool](core/GraphItemPool.md)
 
-- [Views](views/GraphView.md)
+- [视图](views/GraphView.md)
     - [GraphView](views/GraphView.md)
     - [NetworkView](views/NetworkView.md)
     - [InspectorView](views/InspectorView.md)
 
-- [Interaction & Commands](interaction/CommandManager.md)
+- [交互与命令](interaction/CommandManager.md)
     - [CommandManager](interaction/CommandManager.md)
 
-- [Graphics & UI](graphics/Canvas.md)
+- [图形与 UI](graphics/Canvas.md)
     - [Canvas](graphics/Canvas.md)
     - [UIStyle](graphics/UIStyle.md)
 
-- [Utilities](utils/MessageHub.md)
+- [工具](utils/MessageHub.md)
     - [MessageHub](utils/MessageHub.md)
     - [TypeSystem](utils/TypeSystem.md)
 
-- [Backend](backend/ImGuiNodeGraphEditor.md)
+- [后端](backend/ImGuiNodeGraphEditor.md)
     - [ImGuiNodeGraphEditor](backend/ImGuiNodeGraphEditor.md)

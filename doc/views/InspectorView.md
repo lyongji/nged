@@ -1,44 +1,42 @@
 # InspectorView
 
-The `InspectorView` class provides a property editor interface for selected graph items.
+`InspectorView` 为选中的图元提供属性编辑器界面。
 
-## Header
+## 头文件
 
 `#include "nged/nged.h"`
 
-## Class Definition
+## 类定义
 
 ```cpp
 class InspectorView : public GraphView
 {
 protected:
-  std::weak_ptr<GraphView> linkedView_;
-  HashSet<ItemID>          inspectingItems_;
-  // ...
+  std::weak_ptr<GraphView> linkedView_;       // 关联的主视图
+  HashSet<ItemID>          inspectingItems_;  // 正在检查的图元
+  bool                     lockOnItem_ = false;
+  bool                     lockOnView_ = false;
 };
 ```
 
-## Key Responsibilities
+## 核心职责
 
--   **Property Editing**: Displays and edits properties of selected items.
--   **View Linking**: Can be linked to a specific `NetworkView` to automatically inspect its selection.
--   **Locking**: Supports locking to a specific item or view.
+- **关联视图**：通常链接到一个 `NetworkView`，跟随其选择变化。
+- **属性编辑**：显示和编辑选中图元的属性（名称、颜色、位置等）。
+- **锁定机制**：可以锁定到特定图元或特定视图，不受选择变化影响。
 
-## Public Methods
+## 公开方法
 
-### Linkage
+- `GraphViewPtr linkedView() const`：返回关联的视图。
+- `HashSet<ItemID> const& inspectingItems() const`：返回当前检查的图元集合。
+- `void setInspectingItems(HashSet<ItemID> const& ids)`：设置检查目标。
+- `void linkToView(GraphView* view)`：链接到一个视图。
+- `bool lockOnItem() const`：是否锁定图元。
+- `bool lockOnView() const`：是否锁定视图。
 
--   `void linkToView(GraphView* view)`: Links this inspector to another view.
--   `auto linkedView() const`: Returns the linked view.
--   `bool lockOnItem() const`: Returns true if locked to specific items.
--   `bool lockOnView() const`: Returns true if locked to a specific view.
+## 工作流程
 
-### Inspection
-
--   `auto const& inspectingItems() const`: Returns the set of items being inspected.
--   `void setInspectingItems(HashSet<ItemID> const& ids)`: Sets the items to inspect.
-
-### Event Handling
-
--   `void onViewEvent(GraphView* view, StringView eventType) override`: Responds to events from other views (e.g., selection change).
--   `void onGraphModified() override`: Updates the inspector when the graph changes.
+1. 用户在 `NetworkView` 中选中图元。
+2. 关联的 `InspectorView` 收到选择变化通知。
+3. 显示选中图元的属性面板（名称、大小、颜色等）。
+4. 用户可以直接在检查器中修改属性。

@@ -1,121 +1,51 @@
 # NodeGraphEditor
 
-The `NodeGraphEditor` class is the central controller for the node graph editor application. It manages views, documents, commands, and factories.
+`NodeGraphEditor` 是节点图编辑器应用的中心控制器。管理视图、文档、命令和工厂。
 
-## Header
+## 头文件
 
 `#include "nged/nged.h"`
 
-## Class Definition
+## 核心职责
 
-```cpp
-class NodeGraphEditor
-{
-public:
-  using DocPtr  = std::shared_ptr<NodeGraphDoc>;
-  using ViewPtr = std::shared_ptr<GraphView>;
-  virtual ~NodeGraphEditor() { }
-  
-  GraphEventHub& events() { return eventHub_; }
-  // ...
-};
-```
+- **视图管理**：创建、跟踪和销毁视图。
+- **文档管理**：创建、打开和保存文档。
+- **命令系统**：管理和分发命令。
+- **工厂模式**：通过工厂创建节点、图元和视图。
+- **事件系统**：提供 `GraphEventHub` 进行组件间通信。
 
-## Key Responsibilities
+## 公开方法
 
--   **Document Management**: Creates, opens, saves, and closes documents (`NodeGraphDoc`).
--   **View Management**: Manages a set of views (`GraphView`) that display the graph or other information.
--   **Command Handling**: Integrates with `CommandManager` to handle user commands.
--   **Factory Management**: Holds references to `NodeFactory`, `GraphItemFactory`, and `ViewFactory`.
--   **Event Handling**: Centralized event hub (`GraphEventHub`) for observing and intercepting graph operations.
+### 文档操作
 
-## Event System (GraphEventHub)
+- `DocPtr createNewDocAndDefaultViews()`：创建新文档并附加默认视图。
+- `DocPtr openDoc(StringView path)`：打开文档。
+- `bool saveDoc(DocPtr doc)`：保存文档。
+- `bool saveDocAs(DocPtr doc, StringView path)`：另存文档。
 
-The `NodeGraphEditor` exposes a `GraphEventHub` via `events()`. This hub contains `Signal`s (for notifications) and `Request`s (for intercepting/modifying operations).
+### 视图操作
 
-### Signals (Notifications)
+- `ViewPtr addView(DocPtr doc, String const& kind)`：为文档添加视图。
+- `bool closeView(ViewPtr view, bool confirmIfNotSaved)`：关闭视图。
+- `void broadcastViewEvent(GraphView* view, StringView eventType)`：广播视图事件。
 
-Listeners can subscribe to these signals to be notified when events occur.
+### 图元操作
 
--   `onItemAdded(Graph*, GraphItem*)`: Called after an item is added.
--   `onItemRemoved(GraphItem*)`: Called after an item is removed.
--   `onNodeRenamed(Graph*, Node*)`: Called after a node is renamed.
--   `onViewRemoved(GraphView*)`: Called when a view is closed.
--   `beforeViewUpdate(GraphView*)`, `afterViewUpdate(GraphView*)`: Called around view updates.
--   `beforeViewDraw(GraphView*)`, `afterViewDraw(GraphView*)`: Called around view drawing.
--   `onItemMoved(GraphItem*)`: Called when an item is moved.
--   `onItemModified(GraphItem*)`: Called when an item's internal state changes.
--   `onInspect(InspectorView*, GraphItem**, size_t)`: Called when items are inspected.
--   `afterPaste(Graph*, GraphItem**, size_t)`: Called after items are pasted.
--   `onItemClicked`, `onItemDoubleClicked`, `onItemHovered`: Interaction events.
--   `onSelectionChanged`: Called when selection changes.
--   `onLinkSet(Link*)`, `onLinkRemoved(Link*)`: Called when links are modified.
+- `NodePtr createNode(Graph* graph, StringView type)`：创建节点。
+- `ItemID addItem(Graph* graph, GraphItemPtr item)`：添加图元。
+- `void removeItems(Graph* graph, HashSet<ItemID> const& items, ...)`：移除图元。
+- `bool setLink(...)`：建立连线。
+- `void removeLink(...)`：移除连线。
 
-### Requests (Interception)
+### 配置
 
-Requests allow listeners to approve, deny, or modify an operation before it happens. If any listener returns `false`, the operation is aborted.
+- `void setNodeFactory(NodeFactoryPtr)`：设置节点工厂。
+- `void setItemFactory(GraphItemFactoryPtr)`：设置图元工厂。
+- `void setViewFactory(ViewFactoryPtr)`：设置视图工厂。
+- `void setContextMenus(ContextMenuEntriesPtr)`：设置右键菜单项。
 
--   `requestAddItem(Graph*, GraphItem* item, GraphItem** replacement)`: Can deny addition (return false) or provide a replacement item.
--   `requestRemoveItem(Graph*, GraphItem*)`: Can deny item removal.
--   `requestRenameNode(Graph*, Node*)`: Can deny node renaming.
--   `requestRemoveView(GraphView*)`: Can deny view removal.
--   `requestLinkSet(Graph*, InputConnection, OutputConnection)`: Can deny link creation.
+### 访问器
 
-### Usage Example
-
-```cpp
-// Listen for notifications
-editor->events().onItemAdded.connect([](Graph* graph, GraphItem* item) {
-    msghub::infof("Item added: {}", item->id());
-});
-
-// Intercept operations
-editor->events().requestAddItem.connect([](Graph* graph, GraphItem* item, GraphItem** replacement) -> bool {
-    if (item->asNode() && item->asNode()->type() == "forbidden") {
-        return false; // Deny addition
-    }
-    return true; // Allow
-});
-```
-
-## Public Methods
-
-### Configuration
-
--   `void setFileExt(String ext)`: Sets the file extension for saved documents.
--   `void setItemFactory(GraphItemFactoryPtr factory)`: Sets the factory for creating graph items.
--   `void setViewFactory(ViewFactoryPtr factory)`: Sets the factory for creating views.
--   `void setNodeFactory(NodeFactoryPtr factory)`: Sets the factory for creating nodes.
--   `void setDocFactory(std::function<NodeGraphDocPtr(...)> factory)`: Sets the factory for creating documents.
--   `void setContextMenus(ContextMenuEntriesPtr menus)`: Sets the context menu entries.
-
-### Document Operations
-
--   `virtual DocPtr createNewDocAndDefaultViews()`: Creates a new document and default views.
--   `virtual DocPtr openDoc(StringView path)`: Opens a document from a file.
--   `virtual bool loadDocInto(StringView path, DocPtr dest)`: Loads a document into an existing one.
--   `virtual bool saveDoc(DocPtr doc)`: Saves a document.
--   `virtual bool saveDocAs(DocPtr doc, StringView path)`: Saves a document to a specific path.
--   `bool closeView(ViewPtr view, bool confirmIfNotSaved)`: Closes a view, optionally prompting to save.
--   `bool agreeToQuit() const`: Checks if it's safe to quit (i.e., no unsaved changes).
-
-### Graph Manipulation
-
--   `NodePtr createNode(Graph* graph, StringView type)`: Creates a node of a specific type.
--   `ItemID addItem(Graph* graph, GraphItemPtr item)`: Adds an item to the graph.
--   `void confirmItemPlacements(Graph* graph, HashSet<ItemID> const& items)`: Confirms the placement of moved items.
--   `bool moveItems(Graph* graph, HashSet<ItemID> const& items, Vec2 delta)`: Moves items by a delta.
--   `void removeItems(Graph* graph, HashSet<ItemID> const& items, ...)`: Removes items from the graph.
--   `bool setLink(Graph* graph, NetworkView* fromView, ItemID sourceItem, sint sourcePort, ItemID destItem, sint destPort)`: Creates a link between two items.
--   `void removeLink(Graph* graph, ItemID destItem, sint destPort)`: Removes a link connected to a specific input port.
-
-### Update Loop
-
--   `virtual void update(float dt)`: Updates the editor and its views.
--   `virtual void draw() = 0`: Draws the editor (pure virtual, to be implemented by UI backend).
-
-## Accessors
-
--   `auto const& views() const`: Returns the list of active views.
--   `auto& commandManager()`: Returns the command manager.
--   `GraphEventHub& events()`: Returns the event hub.
+- `NodeFactoryPtr nodeFactory() const`：获取节点工厂。
+- `CommandManager& commandManager()`：获取命令管理器。
+- `GraphEventHub& events()`：获取事件总线。
