@@ -1013,11 +1013,14 @@ public:
       ImGui::TextDisabled("cwd:");
       ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {0.f, 4.f});
       for (auto ritr = path.rbegin(); ritr != path.rend(); ++ritr) {
+        ImGui::PushID(ritr->get());
         auto name = fmt::format("{}/", (*ritr)->name());
         if (ImGui::MenuItem(name.c_str())) {
           reset(*ritr);
+          ImGui::PopID();
           break;
         }
+        ImGui::PopID();
       }
       ImGui::PopStyleVar();
       ImGui::EndMenuBar();
@@ -2709,10 +2712,12 @@ bool CreateNodeState::update(NetworkView* view)
             });
         }
       }
-      for (auto itr = orderedMatches_.begin(); itr != orderedMatches_.end(); ++itr) {
+      int menuIdx = 0;
+      for (auto itr = orderedMatches_.begin(); itr != orderedMatches_.end(); ++itr, ++menuIdx) {
+        ImGui::PushID(menuIdx);
         if (itr->second.kind==MatchItem::ITEM)
           ImGui::PushStyleColor(ImGuiCol_Text, 0xFF4796D3);
-        String menustr = itr->second.name; //fmt::format("{} ({})", itr->second.name, itr->second.type);
+        String menustr = fmt::format("{}##{}", itr->second.name, itr->second.type);
         if (
           ImGui::MenuItem(menustr.c_str(), nullptr) ||
           (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter))) {
@@ -2727,6 +2732,7 @@ bool CreateNodeState::update(NetworkView* view)
         }
         if (itr->second.kind==MatchItem::ITEM)
           ImGui::PopStyleColor();
+        ImGui::PopID();
       }
       if (isConfirmed_ && confirmedNodeType_ == "" && confirmedItemType_ == "") {
         if (ImGui::GetIO().KeyMods != ImGuiMod_Ctrl) {
